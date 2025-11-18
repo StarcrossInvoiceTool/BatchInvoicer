@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Application specific - temporary/runtime files
+temp/
+uploads/
+invoice html/
+*.pkl
+*.log
+
+# Test data files (Excel, CSV)
+*.xlsx
+*.xls
+# Note: CSV files in temp/ are already covered by temp/ above
+
+# Sensitive data
+whitelist.json
+.env
+.env.local
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+*.exe
+*.spec
+BatchInvoicer/
+
+# Logs
+*.log
+logs/

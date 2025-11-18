@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - British Emergency Ambulance Response Service</title>
+    <style>
+        /*
+        * Custom CSS for font families, sizes, print media, and general layout.
+        * We are using specific font families and sizes as requested.
+        * Page-break properties manage a multi-page document.
+        * Page numbering is handled via CSS counters for print.
+        * Note: Removed Tailwind CDN and external fonts for better print compatibility.
+        */
+        body {
+            font-family: Arial, sans-serif; /* Using web-safe font for print compatibility */
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        .font-arial {
+            font-family: Arial, sans-serif;
+        }
+
+        .font-times-new-roman {
+            font-family: "Times New Roman", Times, serif;
+        }
+
+        /*
+        * Note on Apots Narrow:
+        * This is not a standard web-safe font. We are using Arial Narrow as a close alternative
+        * to ensure the template renders correctly across different browsers and systems.
+        */
+        .font-apots-narrow {
+            font-family: "Arial Narrow", sans-serif;
+        }
+
+        .font-calibri {
+            font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+        }
+
+        /* The .page class is now set to A4 dimensions for on-screen viewing */
+        .page {
+            width: 794px; /* A4 width in pixels at 96 DPI */
+            min-height: 1123px; /* A4 height in pixels at 96 DPI */
+            margin: 1.5rem auto; /* Center the page and add vertical spacing */
+            background-color: white;
+            padding: 2.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* For first page, push footer to bottom */
+        .page:first-of-type {
+            justify-content: space-between;
+        }
+        
+        .page-content {
+            flex: 1;
+        }
+        
+        .page-footer {
+            margin-top: auto;
+        }
+        
+        /* Utility classes to replace Tailwind */
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .flex-grow { flex-grow: 1; }
+        .items-center { align-items: center; }
+        .items-start { align-items: flex-start; }
+        .items-end { align-items: flex-end; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
+        .justify-start { justify-items: start; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .w-1\/2 { width: 50%; }
+        .w-full { width: 100%; }
+        .mb-1 { margin-bottom: 0.25rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-8 { margin-bottom: 2rem; }
+        .mb-10 { margin-bottom: 2.5rem; }
+        .mb-12 { margin-bottom: 3rem; }
+        .mt-1 { margin-top: 0.25rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-8 { margin-top: 2rem; }
+        .mt-16 { margin-top: 4rem; }
+        .mr-2 { margin-right: 0.5rem; }
+        .pr-4 { padding-right: 1rem; }
+        .p-4 { padding: 1rem; }
+        .p-8 { padding: 2rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .h-20 { height: 5rem; }
+        .h-24 { height: 6rem; }
+        .bg-gray-100 { background-color: #f3f4f6; }
+        .bg-white { background-color: white; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-700 { color: #374151; }
+        .text-gray-800 { color: #1f2937; }
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .text-3xl { font-size: 1.875rem; }
+        .font-bold { font-weight: bold; }
+        .font-normal { font-weight: normal; }
+        .border { border-width: 1px; }
+        .border-t { border-top-width: 1px; }
+        .border-t-2 { border-top-width: 2px; }
+        .border-gray-300 { border-color: #d1d5db; }
+        .border-gray-800 { border-color: #1f2937; }
+        .border-black { border-color: #000; }
+        .rounded-lg { border-radius: 0.5rem; }
+        .grid { display: grid; }
+        .col-span-2 { grid-column: span 2 / span 2; }
+        .col-span-3 { grid-column: span 3 / span 3; }
+        .col-span-4 { grid-column: span 4 / span 4; }
+        .col-span-5 { grid-column: span 5 / span 5; }
+        .col-start-1 { grid-column-start: 1; }
+        .col-start-3 { grid-column-start: 3; }
+        .col-start-5 { grid-column-start: 5; }
+        .col-start-7 { grid-column-start: 7; }
+        .col-start-9 { grid-column-start: 9; }
+        .col-start-12 { grid-column-start: 12; }
+        .col-start-14 { grid-column-start: 14; }
+        .col-start-16 { grid-column-start: 16; }
+        .col-start-18 { grid-column-start: 18; }
+        .col-start-20 { grid-column-start: 20; }
+        .gap-x-4 { column-gap: 1rem; }
+        .gap-y-0\.5 { row-gap: 0.125rem; }
+        .grid-cols-\[auto_1fr\] { grid-template-columns: auto 1fr; }
+        hr { border: none; border-top: 1px solid #e5e7eb; }
+
+        /*
+        * Print-specific styles
+        * Sets the page size to A4 for printing and handles page breaks.
+        */
+        @page {
+            size: A4;
+            margin: 0.25in; /* Reduced margins for more space */
+            /* Suppress browser print headers/footers */
+            marks: none;
+        }
+        
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                box-sizing: border-box;
+            }
+            
+            body {
+                background-color: #fff;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                overflow: hidden;
+            }
+            
+            .page {
+                box-shadow: none;
+                border-radius: 0;
+                margin: 0;
+                padding: 0.25in;
+                page-break-after: always;
+                width: 100%;
+                max-width: 100%;
+                min-height: 100vh;
+                position: relative;
+                overflow: visible;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .page:first-of-type {
+                padding-top: 0.25in;
+                justify-content: space-between;
+                min-height: 100vh;
+            }
+            
+            .page:last-of-type {
+                page-break-after: avoid;
+            }
+            
+            /* Hide all print headers - they should only be in the content flow */
+            .print-header {
+                display: none !important;
+            }
+            
+            /* Print-only Footer - normal flow */
+            .print-footer {
+                display: block;
+                background-color: white;
+                padding: 1rem 0 0 0;
+                margin-top: 1rem;
+            }
+            
+            /* Hide the screen-only elements in print mode */
+            .screen-only {
+                display: none !important;
+            }
+            
+            /* Show print-only elements */
+            .print-only {
+                display: block !important;
+            }
+            
+            /* Prevent line items from breaking across pages */
+            .data-grid {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            
+            /* Ensure page breaks happen before dotted lines, not in the middle */
+            .dotted-line-bottom {
+                page-break-before: auto;
+                break-before: auto;
+            }
+            
+            /* Wrap each line item with its dotted line to keep them together */
+            .invoice-line-item {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            
+            /* Ensure images print correctly */
+            img {
+                max-width: 100%;
+                height: auto;
+            }
+            
+            /* Prevent text overflow but allow normal layout */
+            .header-grid,
+            .data-grid {
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            
+            /* Ensure borders and lines don't extend beyond page */
+            hr, .border, .border-t, .border-t-2 {
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            
+            /* Allow normal word wrapping */
+            p, span, div {
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+        }
+        
+        /* Hide the print-only elements in screen mode */
+        .print-only {
+            display: none;
+        }
+
+        .dotted-line-bottom {
+            border-bottom: 1px dashed #d1d5db;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Ensure all elements respect page boundaries */
+        hr {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        /*
+        * A single, precise grid for the headers. This ensures everything
+        * stays perfectly aligned, even with varying text lengths and
+        * blank columns. Using 24 columns for maximum flexibility.
+        */
+        .header-grid {
+            display: grid;
+            grid-template-columns: repeat(24, minmax(0, 1fr));
+            gap: 0.25rem;
+            font-size: 6pt;
+            color: #4b5563;
+            margin-top: 1rem;
+            font-family: "Times New Roman", Times, serif;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(24, minmax(0, 1fr));
+            gap: 0.25rem;
+            font-family: Arial, sans-serif;
+            font-size: 7pt; /* Changed to 7pt as requested */
+        }
+
+        .data-grid > span {
+            font-weight: normal; /* Ensured no bold font weight for data */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    
+    <div class="page">
+        <div class="page-content">
+            <div class="text-center mb-6 font-arial screen-only">
+                <div class="flex items-center justify-center mb-2">
+                    <img src="/static/Picture1.jpg" alt="Star of life containing Rod of Asclepius. British Emergency Ambulance Response Service." class="h-24">
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800" style="font-size: 10pt;">British Emergency Ambulance Response Service</h1>
+                <p class="text-gray-600 text-sm mt-1" style="font-size: 8pt;">
+                    Unit 2 Old Post Office Lane, Kidbrooke, London, SE3 9BY, Tel: 0208 202 5160, Web: www.bears-pts.co.uk
+                </p>
+            </div>
+
+            <div class="text-center mb-6 font-arial print-only">
+                <div class="flex items-center justify-center mb-2">
+                    <img src="/static/Picture1.jpg" alt="Star of life containing Rod of Asclepius. British Emergency Ambulance Response Service." class="h-20">
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800" style="font-size: 10pt;">British Emergency Ambulance Response Service</h1>
+                <p class="text-gray-600 text-sm mt-1" style="font-size: 8pt;">
+                    Unit 2 Old Post Office Lane, Kidbrooke, London, SE3 9BY, Tel: 0208 202 5160, Web: www.bears-pts.co.uk
+                </p>
+                <div class="dotted-line-bottom" style="margin-top: 0.5rem; margin-bottom: 1rem;"></div>
+            </div>
+
+            <div class="flex justify-between items-start mb-6">
+            <div class="w-1/2 pr-4 font-arial" style="font-size: 8pt;">
+                <p class="text-gray-700">Client Name: {{ data.patient.name }}</p>
+                <p class="text-gray-700">Client Address: {{ data.patient.address }}</p>
+                <p class="text-gray-700">Client Postcode: {{ data.patient.postcode }}</p>
+            </div>
+
+            <div class="w-1/2 text-right">
+                <div class="flex flex-col items-end">
+                    <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 justify-items-start text-sm">
+                        <div class="col-span-2 text-right">
+                            <h2 class="text-3xl text-gray-800 mb-2 font-times-new-roman" style="font-size: 28pt;">Invoice</h2>
+                        </div>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">Invoice Number:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.number }}</span>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">Invoice Date:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.date }}</span>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">Account Reference:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.account_ref }}</span>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">Reference:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.ref }}</span>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">PO Number:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.po_number }}</span>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">Payment Terms:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.payment_terms }}</span>
+
+                        <span class="font-bold font-arial" style="font-size: 10pt;">Period:</span>
+                        <span class="font-apots-narrow" style="font-size: 11pt;">{{ data.invoice.period }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end mt-6 font-arial" style="font-size: 9.5pt;">
+            <div class="w-1/2">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-gray-700">{{ data.financial.net_label }}</span>
+                    <span class="text-gray-800">{{ data.financial.net }}</span>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-gray-700">{{ data.financial.discount_label }}</span>
+                    <span class="text-gray-800">{{ data.financial.discount }}</span>
+                </div>
+
+                <hr class="border-t-2 border-black my-2">
+
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-gray-700">{{ data.financial.subtotal_label }}</span>
+                    <span class="text-gray-800">{{ data.financial.subtotal }}</span>
+                </div>
+
+                <hr class="border-t-2 border-black my-2">
+
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-gray-700">{{ data.financial.vat_label }}</span>
+                    <span class="text-gray-800">{{ data.financial.vat_amount }}</span>
+                </div>
+                <hr class="border-t-2 border-black my-2">
+                <hr class="border-t-2 border-black my-2">
+
+                <div class="py-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{{ data.financial.total_label }}</span>
+                        <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{{ data.financial.total }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end mt-6">
+            <div class="border border-gray-300 rounded-lg p-4 w-1/2 font-calibri" style="font-size: 11pt;">
+                <h3 class="font-bold text-gray-800 mb-2">Bank Details</h3>
+                <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 justify-items-start text-sm">
+                    <span class="text-gray-700">Bank Name:</span>
+                    <span class="font-bold">{{ data.bank.name }}</span>
+
+                    <span class="text-gray-700">Account Name:</span>
+                    <span class="font-bold">{{ data.bank.account_name }}</span>
+
+                    <span class="text-gray-700">Account Number:</span>
+                    <span class="font-bold">{{ data.bank.account_number }}</span>
+
+                    <span class="text-gray-700">Account Sort Code:</span>
+                    <span class="font-bold">{{ data.bank.sort_code }}</span>
+                </div>
+            </div>
+        </div>
+
+            <div class="text-center mt-8 font-arial screen-only" style="font-size: 8pt;">
+                <p class="text-gray-600">If you have any questions regarding this invoice, please email acc@bears.co.uk.</p>
+            </div>
+        </div>
+        
+        <div class="page-footer">
+            <footer class="flex justify-between items-center text-gray-500 text-xs font-arial screen-only" style="font-size: 8pt;">
+                <span>VAT number: 982940874</span>
+                <span>Starcross Trading Limited T/A BEARS</span>
+                <span>Company #: 07069657</span>
+            </footer>
+            
+            <div class="print-footer print-only text-center font-arial" style="font-size: 8pt;">
+                <p class="text-gray-600 mb-2">If you have any questions regarding this invoice, please email acc@bears.co.uk.</p>
+                <footer class="flex justify-between items-center text-gray-500 text-xs font-arial" style="font-size: 8pt;">
+                    <span>VAT number: 982940874</span>
+                    <span>Starcross Trading Limited T/A BEARS</span>
+                    <span>Company #: 07069657</span>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <div class="page flex flex-col mt-8">
+        <div class="flex-grow">
+            <hr class="border-t-2 border-gray-800">
+
+            <div class="header-grid">
+                <span class="col-span-2 font-bold">Date</span>
+                <span class="col-span-2 font-bold">Our ref</span>
+                <span class="col-span-2 font-bold">client ref</span>
+                <span class="col-span-2 font-bold">nhs number</span>
+                <span class="col-span-3 font-bold">Contract Hospital</span>
+                <span class="col-span-4"></span>
+                <span class="col-span-2 font-bold">booked by</span>
+                <span class="col-span-2 font-bold">from</span>
+                <span class="col-span-5 font-bold">to</span>
+
+                <span class="col-start-1 col-span-2 font-bold">Status</span>
+                <span class="col-start-3 col-span-2 font-bold">directions</span>
+                <span class="col-start-5 col-span-2 font-bold">MOB</span>
+                <span class="col-start-7 col-span-2 font-bold">Wait £</span>
+                <span class="col-start-9 col-span-3 font-bold">wait notes</span>
+                <span class="col-start-12 col-span-2 font-bold">miles</span>
+                <span class="col-start-14 col-span-2 font-bold">charged</span>
+                <span class="col-start-16 col-span-2 font-bold">miles £</span>
+                <span class="col-start-18 col-span-2 font-bold">job £</span>
+                <span class="col-start-20 col-span-5 font-bold">total</span>
+            </div>
+
+            <hr class="border-t border-gray-300 mt-2">
+
+            {% for item in data.invoice['items'] %}
+                {% set date_is_nan = (not item.date or item.date|lower == 'nan' or item.date|string|trim == '') %}
+                {% set ref_is_nan = (not item.our_ref or item.our_ref|lower == 'nan' or item.our_ref|string|trim == '') %}
+                {% if not (date_is_nan and ref_is_nan) %}
+                <div class="invoice-line-item">
+                    <div class="data-grid font-normal">
+                        <span class="col-span-2">{{ item.date }}</span>
+                        <span class="col-span-2">
+                            {% if item.our_ref|string|trim|length > 0 and item.our_ref|string|trim|lower != 'nan' %}
+                                {% set our_ref_str = item.our_ref|string|trim %}
+                                {% if our_ref_str|length >= 2 and our_ref_str[-2:] == '.0' %}
+                                    {{ our_ref_str[:-2] }}
+                                {% else %}
+                                    {{ our_ref_str }}
+                                {% endif %}
+                            {% endif %}
+                        </span>
+                        <span class="col-span-2">{{ item.client_ref }}</span>
+                        <span class="col-span-2">{{ item.nhs_number }}</span>
+                        <span class="col-span-3">{{ item.contract_hospital }}</span>
+                        <span class="col-span-4"></span>
+                        <span class="col-span-2">{{ item.booked_by }}</span>
+                        <span class="col-span-2">{{ item.from_location }}</span>
+                        <span class="col-span-5">{{ item.to_location }}</span>
+
+                        <span class="col-start-1 col-span-2">{{ item.status }}</span>
+                        <span class="col-start-3 col-span-2">{{ item.directions }}</span>
+                        <span class="col-start-5 col-span-2">{{ item.mob }}</span>
+                        <span class="col-start-7 col-span-2">{{ item.wait_pounds }}</span>
+                        <span class="col-start-9 col-span-3">{{ item.wait_notes }}</span>
+                        <span class="col-start-12 col-span-2">{{ item.miles }}</span>
+                        <span class="col-start-14 col-span-2">{{ item.charged }}</span>
+                        <span class="col-start-16 col-span-2">{% if item.miles_pounds %}£{{ item.miles_pounds }}{% endif %}</span>
+                        <span class="col-start-18 col-span-2">{% if item.job_pounds %}£{{ item.job_pounds }}{% endif %}</span>
+                        <span class="col-start-20 col-span-5 font-bold text-gray-800">{% if item.total %}£{{ item.total }}{% endif %}</span>
+                    </div>
+                    <hr class="dotted-line-bottom">
+                </div>
+                {% endif %}
+            {% endfor %}
+
+        </div>
+
+        <footer class="mt-16 flex justify-between items-center text-gray-500 text-xs font-arial screen-only" style="font-size: 8pt;">
+            <span>VAT number: 982940874</span>
+            <span>Starcross Trading Limited T/A BEARS</span>
+            <span>Company #: 07069657</span>
+        </footer>
+    </div>
+</body>
+</html>

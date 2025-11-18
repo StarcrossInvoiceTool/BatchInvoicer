@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator - BEARS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full">
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center mb-4">
+                <img src="/static/Picture1.jpg" alt="BEARS Logo" class="h-20">
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Invoice Generator</h1>
+            <p class="text-gray-600">Upload a CSV file to generate your invoice</p>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p class="text-red-800 text-sm">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+            <form action="#" method="post" enctype="multipart/form-data" class="space-y-6" onsubmit="event.preventDefault(); alert('CSV upload functionality will be implemented separately.');">
+                <div>
+                    <label for="csv_file" class="block text-sm font-medium text-gray-700 mb-2">
+                        Select CSV File
+                    </label>
+                    <input 
+                        type="file" 
+                        id="csv_file" 
+                        name="csv_file" 
+                        accept=".csv"
+                        required
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    >
+                </div>
+                <button 
+                    type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                >
+                    Generate Invoice
+                </button>
+            </form>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">CSV Format Guide</h2>
+            <div class="text-sm text-gray-700 space-y-2">
+                <p><strong>Your CSV should include the following columns:</strong></p>
+                <ul class="list-disc list-inside space-y-1 ml-2">
+                    <li><strong>Patient Info:</strong> patient_name, patient_address, patient_postcode</li>
+                    <li><strong>Invoice Info:</strong> invoice_number, invoice_date, account_ref, ref, po_number, payment_terms, period</li>
+                    <li><strong>Financial Info:</strong> net, discount, subtotal, vat_amount, total</li>
+                    <li><strong>Bank Details:</strong> bank_name, bank_account_name, bank_account_number, bank_sort_code</li>
+                    <li><strong>Invoice Items:</strong> date, our_ref, client_ref, nhs_number, contract_hospital, booked_by, from_location, to_location, status, directions, mob, wait_pounds, wait_notes, miles, charged, miles_pounds, job_pounds, total</li>
+                </ul>
+                <p class="mt-3 text-xs text-gray-600">
+                    <strong>Note:</strong> The first row should contain metadata (patient, invoice, financial, bank info). 
+                    Subsequent rows should contain invoice items. Each row after the first represents one invoice item.
+                </p>
+            </div>
+        </div>
+
+        <div class="text-center">
+            <a href="/invoice" class="text-blue-600 hover:text-blue-800 text-sm">
+                View Example Invoice →
+            </a>
+        </div>
+    </div>
+</body>
+</html>
+

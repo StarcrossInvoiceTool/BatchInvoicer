@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stage 2: CSV to Invoice - Batch Invoicer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="p-4 py-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
+            <div class="mb-6">
+                <a href="/" class="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">← Back to Home</a>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Stage 2: CSV to Invoice</h1>
+                <p class="text-gray-600">Upload a CSV file, edit invoice details, and generate HTML invoice</p>
+            </div>
+
+            <!-- CSV Upload Section -->
+            <div id="upload-section" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="csv_file" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select CSV File(s) - You can upload multiple files at once
+                        </label>
+                        <input 
+                            type="file" 
+                            id="csv_file" 
+                            name="file"
+                            accept=".csv"
+                            multiple
+                            required
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                        >
+                        <p class="mt-2 text-xs text-gray-500">Hold Ctrl (or Cmd on Mac) to select multiple files</p>
+                    </div>
+                    <button 
+                        type="submit"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                    >
+                        Upload and Process CSV(s)
+                    </button>
+                </form>
+            </div>
+
+            <!-- Invoice List Section (hidden initially) -->
+            <div id="invoice-list-section" class="hidden bg-white rounded-lg shadow-2xl p-8 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Invoices</h2>
+                    <button 
+                        id="download-all-btn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                    >
+                        Download All as ZIP
+                    </button>
+                </div>
+                <div id="invoice-list" class="space-y-2">
+                    <!-- Invoice list items will be populated here -->
+                </div>
+            </div>
+
+            <div id="loading" class="hidden text-center py-4">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <p class="mt-2 text-gray-600">Processing CSV file...</p>
+            </div>
+
+            <div id="error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <p class="text-red-800 text-sm"></p>
+            </div>
+        </div>
+
+        <!-- Invoice Editing Section (hidden initially) -->
+        <div id="editing-section" class="hidden bg-white rounded-lg shadow-2xl p-8">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">Edit Invoice Details</h2>
+                    <p id="current-invoice-name" class="text-sm text-gray-500 mt-1"></p>
+                </div>
+                <div class="flex gap-2" id="invoice-navigation" style="display: none;">
+                    <button 
+                        id="prev-invoice-btn"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                    >
+                        ← Previous
+                    </button>
+                    <button 
+                        id="next-invoice-btn"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                    >
+                        Next →
+                    </button>
+                </div>
+            </div>
+            
+            <form id="invoice-form">
+                <!-- Client Information -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Client Information</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
+                            <input type="text" id="patient-name" name="patient_name" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Client Postcode</label>
+                            <input type="text" id="patient-postcode" name="patient_postcode" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Client Address</label>
+                            <input type="text" id="patient-address" name="patient_address" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice Header Information -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Header</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
+                            <input type="text" id="invoice-number" name="invoice_number" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
+                            <input type="date" id="invoice-date" name="invoice_date" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Reference</label>
+                            <input type="text" id="account-ref" name="account_ref" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+                            <input type="text" id="ref" name="ref" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
+                            <input type="text" id="po-number" name="po_number" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
+                            <input type="text" id="payment-terms" name="payment_terms" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                            <input type="text" id="period" name="period" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financial Information -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Financial Information</h3>
+                    <div class="space-y-4">
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                                <input type="text" id="net-label" name="net_label" value="net" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                                <input type="number" step="0.01" id="net" name="net" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                                <input type="text" id="discount-label" name="discount_label" value="discount" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                                <input type="number" step="0.01" id="discount" name="discount" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                                <input type="text" id="subtotal-label" name="subtotal_label" value="Invoice subtotal" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                                <input type="number" step="0.01" id="subtotal" name="subtotal" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                                <input type="text" id="vat-label" name="vat_label" value="VAT 20%" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                                <input type="number" step="0.01" id="vat-amount" name="vat_amount" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                                <input type="text" id="total-label" name="total_label" value="TOTAL DUE" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                                <input type="number" step="0.01" id="total" name="total" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bank Details -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Bank Details (Static)</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                            <input type="text" id="bank-name" name="bank_name" value="Lloyds Bank Plc" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                            <input type="text" id="bank-account-name" name="bank_account_name" value="Starcross Trading Limited" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                            <input type="text" id="bank-account-number" name="bank_account_number" value="82082760" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sort Code</label>
+                            <input type="text" id="bank-sort-code" name="bank_sort_code" value="30-99-21" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Configuration -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Pricing Configuration</h3>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Job Price (Flat) £</label>
+                                <input type="number" step="0.01" id="job-price-flat" value="" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Mileage Included</label>
+                                <input type="number" step="0.01" id="mileage-included" value="" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Mileage Charge £</label>
+                                <input type="number" step="0.01" id="mileage-charge" value="" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                        </div>
+                        <div class="mt-4 flex gap-4 items-center">
+                            <button 
+                                type="button"
+                                id="calculate-totals-btn"
+                                onclick="calculateSelectedTotals()"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200"
+                            >
+                                Calculate Selected Totals
+                            </button>
+                            <span id="selected-count" class="text-sm text-gray-600">0 items selected</span>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600">
+                            Formula: Job Price + (if Actual Mileage > Mileage Included: (Actual Mileage - Mileage Included) × Mileage Charge, else: 0)
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Invoice Line Items -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Line Items</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full border border-gray-300 rounded-lg">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">
+                                        <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll()" class="cursor-pointer">
+                                    </th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-100 select-none" onclick="sortTable('date')">
+                                        Date <span id="sort-date-indicator" class="ml-1 text-gray-400"></span>
+                                    </th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Our Ref</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Client Ref</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-100 select-none" onclick="sortTable('mob')">
+                                        MOB <span id="sort-mob-indicator" class="ml-1 text-gray-400"></span>
+                                    </th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Wait £</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Miles £</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Job £</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoice-items-table">
+                                <!-- Invoice items will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-4">
+                    <button 
+                        type="button"
+                        id="preview-btn"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                    >
+                        Preview Invoice
+                    </button>
+                    <button 
+                        type="submit"
+                        class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                    >
+                        Generate & Download Invoice
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Success Message -->
+        <div id="success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
+            <p class="text-green-800 text-sm mb-2">Invoice generated successfully!</p>
+            <a id="download-link" href="#" download class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                Download HTML Invoice
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+        let currentInvoiceData = null;
+        let currentInvoiceItems = null;
+        let originalInvoiceItems = null;
+        let sortState = { column: null, direction: null };
+        let isDragging = false;
+        let dragStartIndex = null;
+        let dragStartChecked = null;
+        let mouseDownTime = null;
+        let mouseDownPosition = null;
+        let currentMousePosition = null;
+        let batchSessionId = null;
+        let allInvoices = [];
+        let currentInvoiceIndex = 0;
+
+        // Handle CSV upload
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('csv_file');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showError('Please select at least one CSV file');
+                return;
+            }
+            
+            // Append all selected files
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('files', fileInput.files[i]);
+            }
+            
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/upload-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Processing failed');
+                }
+                
+                const data = await response.json();
+                batchSessionId = data.batch_session_id;
+                allInvoices = data.invoices;
+                currentInvoiceIndex = 0;
+                
+                // Populate invoice list
+                populateInvoiceList(data.invoices);
+                
+                // Load first invoice
+                if (data.invoices.length > 0) {
+                    loadInvoice(data.invoices[0]);
+                }
+                
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('invoice-list-section').classList.remove('hidden');
+                document.getElementById('editing-section').classList.remove('hidden');
+                
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('upload-section').classList.remove('hidden');
+                showError(error.message);
+            }
+        });
+
+        function populateInvoiceList(invoices) {
+            const invoiceList = document.getElementById('invoice-list');
+            invoiceList.innerHTML = '';
+            
+            invoices.forEach((invoice, index) => {
+                const invoiceItem = document.createElement('div');
+                invoiceItem.className = `flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 ${index === currentInvoiceIndex ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}`;
+                invoiceItem.onclick = () => {
+                    currentInvoiceIndex = index;
+                    loadInvoice(invoice);
+                    // Update active state
+                    document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
+                        if (idx === index) {
+                            item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
+                        } else {
+                            item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
+                        }
+                    });
+                };
+                
+                invoiceItem.innerHTML = `
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-800">${invoice.filename}</p>
+                        <p class="text-sm text-gray-500">Invoice ${index + 1} of ${invoices.length}</p>
+                    </div>
+                    <button 
+                        onclick="event.stopPropagation(); downloadSingleInvoice('${invoice.session_id}', '${invoice.filename}')"
+                        class="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm"
+                    >
+                        Download
+                    </button>
+                `;
+                
+                invoiceList.appendChild(invoiceItem);
+            });
+            
+            // Show/hide navigation buttons
+            const navButtons = document.getElementById('invoice-navigation');
+            if (invoices.length > 1) {
+                navButtons.style.display = 'flex';
+            } else {
+                navButtons.style.display = 'none';
+            }
+        }
+
+        function loadInvoice(invoice) {
+            // Save current invoice data before switching (if we have changes)
+            if (currentSessionId && currentInvoiceData) {
+                const currentInvoice = allInvoices.find(inv => inv.session_id === currentSessionId);
+                if (currentInvoice) {
+                    const formData = collectFormData();
+                    currentInvoice.invoice_data = formData;
+                }
+            }
+            
+            currentSessionId = invoice.session_id;
+            currentInvoiceData = invoice.invoice_data;
+            populateForm(invoice.invoice_data);
+            document.getElementById('current-invoice-name').textContent = invoice.filename;
+            
+            // Update navigation buttons
+            document.getElementById('prev-invoice-btn').disabled = currentInvoiceIndex === 0;
+            document.getElementById('next-invoice-btn').disabled = currentInvoiceIndex === allInvoices.length - 1;
+        }
+
+        // Navigation buttons
+        document.getElementById('prev-invoice-btn').addEventListener('click', () => {
+            if (currentInvoiceIndex > 0) {
+                currentInvoiceIndex--;
+                loadInvoice(allInvoices[currentInvoiceIndex]);
+                // Update list highlighting
+                document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
+                    if (idx === currentInvoiceIndex) {
+                        item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
+                    } else {
+                        item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
+                    }
+                });
+            }
+        });
+
+        document.getElementById('next-invoice-btn').addEventListener('click', () => {
+            if (currentInvoiceIndex < allInvoices.length - 1) {
+                currentInvoiceIndex++;
+                loadInvoice(allInvoices[currentInvoiceIndex]);
+                // Update list highlighting
+                document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
+                    if (idx === currentInvoiceIndex) {
+                        item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
+                    } else {
+                        item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
+                    }
+                });
+            }
+        });
+
+        async function downloadSingleInvoice(sessionId, filename) {
+            try {
+                const response = await fetch(`/api/download-invoice/${sessionId}`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) throw new Error('Download failed');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename.replace('.csv', '.html');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                showError('Failed to download invoice');
+            }
+        }
+
+        // Download all invoices
+        document.getElementById('download-all-btn').addEventListener('click', async () => {
+            if (!batchSessionId) {
+                showError('No batch session found');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('batch_session_id', batchSessionId);
+                
+                const response = await fetch('/api/download-all-invoices', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) throw new Error('Download failed');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `invoices_${batchSessionId}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                showError('Failed to download all invoices');
+            }
+        });
+
+        // Helper function to format our_ref (remove .0 suffix)
+        function formatOurRef(ref) {
+            if (!ref) return '';
+            const refStr = String(ref).trim();
+            if (refStr.endsWith('.0')) {
+                return refStr.slice(0, -2);
+            }
+            return refStr;
+        }
+        
+        function populateForm(data) {
+            document.getElementById('patient-name').value = data.patient.name || '';
+            document.getElementById('patient-address').value = data.patient.address || '';
+            document.getElementById('patient-postcode').value = data.patient.postcode || '';
+            document.getElementById('invoice-number').value = data.invoice.number || '';
+            document.getElementById('invoice-date').value = data.invoice.date || '';
+            document.getElementById('account-ref').value = data.invoice.account_ref || '';
+            document.getElementById('ref').value = data.invoice.ref || '';
+            document.getElementById('po-number').value = data.invoice.po_number || '';
+            document.getElementById('payment-terms').value = data.invoice.payment_terms || '';
+            document.getElementById('period').value = data.invoice.period || '';
+            document.getElementById('net-label').value = data.financial.net_label || 'net';
+            document.getElementById('net').value = data.financial.net || '';
+            document.getElementById('discount-label').value = data.financial.discount_label || 'discount';
+            document.getElementById('discount').value = data.financial.discount || '';
+            document.getElementById('subtotal-label').value = data.financial.subtotal_label || 'Invoice subtotal';
+            document.getElementById('subtotal').value = data.financial.subtotal || '';
+            document.getElementById('vat-label').value = data.financial.vat_label || 'VAT 20%';
+            document.getElementById('vat-amount').value = data.financial.vat_amount || '';
+            document.getElementById('total-label').value = data.financial.total_label || 'TOTAL DUE';
+            document.getElementById('total').value = data.financial.total || '';
+            // Bank details are static - always use these values
+            document.getElementById('bank-name').value = 'Lloyds Bank Plc';
+            document.getElementById('bank-account-name').value = 'Starcross Trading Limited';
+            document.getElementById('bank-account-number').value = '82082760';
+            document.getElementById('bank-sort-code').value = '30-99-21';
+            
+            // Store original invoice items for sorting (keep original order)
+            originalInvoiceItems = JSON.parse(JSON.stringify(data.invoice.items));
+            currentInvoiceItems = data.invoice.items;
+            
+            // Reset sort state when loading new data
+            sortState = { column: null, direction: null };
+            updateSortIndicators(null, null);
+            
+            // Populate invoice items table
+            populateInvoiceItemsTable(currentInvoiceItems);
+        }
+        
+        function updateRowTotal(index) {
+            const waitInput = document.querySelector(`.item-wait-pounds[data-index="${index}"]`);
+            const milesInput = document.querySelector(`.item-miles-pounds[data-index="${index}"]`);
+            const jobInput = document.querySelector(`.item-job-pounds[data-index="${index}"]`);
+            const totalInput = document.querySelector(`.item-total[data-index="${index}"]`);
+            
+            if (waitInput && milesInput && jobInput && totalInput) {
+                const wait = parseFloat(waitInput.value) || 0;
+                const miles = parseFloat(milesInput.value) || 0;
+                const job = parseFloat(jobInput.value) || 0;
+                const total = wait + miles + job;
+                totalInput.value = total.toFixed(2);
+            }
+        }
+        
+        function populateInvoiceItemsTable(items) {
+            // Filter out items where both date and our_ref are 'nan' or empty
+            const filteredItems = items.filter(item => {
+                const dateIsNan = !item.date || item.date.toLowerCase() === 'nan' || item.date.trim() === '';
+                const refIsNan = !item.our_ref || item.our_ref.toLowerCase() === 'nan' || item.our_ref.trim() === '';
+                return !(dateIsNan && refIsNan);
+            });
+            
+            // Update current items (for display) - use filtered items
+            currentInvoiceItems = filteredItems;
+            
+            const tbody = document.getElementById('invoice-items-table');
+            tbody.innerHTML = '';
+            
+            filteredItems.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50';
+                row.id = `invoice-row-${index}`;
+                row.setAttribute('data-index', index);
+                
+                // Add drag selection event listeners to the entire row
+                // But exclude the checkbox itself - checkbox is for individual selection
+                row.addEventListener('mousedown', (e) => {
+                    // Don't start drag if clicking directly on the checkbox - let it work normally
+                    if (e.target.type === 'checkbox') {
+                        return; // Let checkbox handle its own click
+                    }
+                    
+                    // Start drag for clicks anywhere else on the row
+                    mouseDownTime = Date.now();
+                    mouseDownPosition = { x: e.clientX, y: e.clientY };
+                    const checkbox = row.querySelector('.item-checkbox');
+                    if (checkbox) {
+                        dragStartIndex = index;
+                        dragStartChecked = !checkbox.checked; // Target state (opposite of current)
+                    }
+                });
+                
+                row.addEventListener('mousemove', (e) => {
+                    currentMousePosition = { x: e.clientX, y: e.clientY };
+                });
+                
+                row.addEventListener('mouseenter', (e) => {
+                    currentMousePosition = { x: e.clientX, y: e.clientY };
+                    
+                    // Check if we should start dragging (mouse moved while button is down)
+                    if (mouseDownTime !== null && dragStartIndex !== null && !isDragging) {
+                        const timeSinceMouseDown = Date.now() - mouseDownTime;
+                        const distance = mouseDownPosition && currentMousePosition ? 
+                            Math.sqrt(Math.pow(currentMousePosition.x - mouseDownPosition.x, 2) + 
+                                     Math.pow(currentMousePosition.y - mouseDownPosition.y, 2)) : 0;
+                        
+                        // Start dragging if mouse moved more than 5px or held for more than 100ms
+                        if (distance > 5 || timeSinceMouseDown > 100) {
+                            isDragging = true;
+                            const checkbox = document.querySelector(`.item-checkbox[data-index="${dragStartIndex}"]`);
+                            if (checkbox) {
+                                checkbox.checked = dragStartChecked;
+                                updateRowSelection(dragStartIndex, dragStartChecked);
+                            }
+                        }
+                    }
+                    
+                    if (isDragging && dragStartIndex !== null) {
+                        // Select all rows between dragStartIndex and current index
+                        const start = Math.min(dragStartIndex, index);
+                        const end = Math.max(dragStartIndex, index);
+                        
+                        for (let i = start; i <= end; i++) {
+                            updateRowSelection(i, dragStartChecked);
+                        }
+                    }
+                });
+                
+                row.innerHTML = `
+                    <td class="px-4 py-2">
+                        <input type="checkbox" 
+                               class="item-checkbox cursor-pointer" 
+                               data-index="${index}"
+                               onchange="updateSelectedCount()">
+                    </td>
+                    <td class="px-4 py-2 text-sm text-gray-700">${item.date || ''}</td>
+                    <td class="px-4 py-2 text-sm text-gray-700">${formatOurRef(item.our_ref || '')}</td>
+                    <td class="px-4 py-2 text-sm text-gray-700">${item.client_ref || ''}</td>
+                    <td class="px-4 py-2 text-sm text-gray-700 font-medium">${item.mob || ''}</td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="0.01" 
+                               class="item-wait-pounds w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                               data-index="${index}" 
+                               value="${item.wait_pounds || ''}"
+                               oninput="updateRowTotal(${index})">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="0.01" 
+                               class="item-miles-pounds w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                               data-index="${index}" 
+                               value="${item.miles_pounds || ''}"
+                               oninput="updateRowTotal(${index})">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="0.01" 
+                               class="item-job-pounds w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                               data-index="${index}" 
+                               value="${item.job_pounds || ''}"
+                               oninput="updateRowTotal(${index})">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="0.01" 
+                               class="item-total w-full border border-gray-300 rounded px-2 py-1 text-sm font-semibold" 
+                               data-index="${index}" 
+                               data-actual-mileage="${item.miles || 0}"
+                               value="${item.total || ''}">
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Make updateRowTotal globally accessible
+            window.updateRowTotal = updateRowTotal;
+            
+            // Initialize selected count
+            updateSelectedCount();
+        }
+        
+        // Add global mouseup and mousemove listeners once to stop dragging
+        if (!window.dragListenerAdded) {
+            document.addEventListener('mouseup', stopDragging);
+            document.addEventListener('mousemove', (e) => {
+                currentMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            window.dragListenerAdded = true;
+        }
+        
+        // Removed handleCheckboxMouseDown - checkboxes now work normally for individual selection
+        // Drag selection is handled by the row mousedown event
+        
+        function updateRowSelection(index, checked) {
+            const checkbox = document.querySelector(`.item-checkbox[data-index="${index}"]`);
+            const row = document.getElementById(`invoice-row-${index}`);
+            
+            if (checkbox) {
+                checkbox.checked = checked;
+            }
+            
+            if (row) {
+                if (checked) {
+                    row.classList.add('bg-blue-50');
+                } else {
+                    row.classList.remove('bg-blue-50');
+                }
+            }
+        }
+        
+        function stopDragging() {
+            // If it was a quick click (not a drag), toggle the checkbox
+            if (mouseDownTime !== null && !isDragging && dragStartIndex !== null) {
+                const timeSinceMouseDown = Date.now() - mouseDownTime;
+                const distance = mouseDownPosition && currentMousePosition ? 
+                    Math.sqrt(Math.pow(currentMousePosition.x - mouseDownPosition.x, 2) + 
+                             Math.pow(currentMousePosition.y - mouseDownPosition.y, 2)) : 0;
+                
+                // If it was a quick click with minimal movement, toggle the checkbox
+                if (timeSinceMouseDown < 300 && distance < 10) {
+                    const checkbox = document.querySelector(`.item-checkbox[data-index="${dragStartIndex}"]`);
+                    if (checkbox) {
+                        checkbox.checked = dragStartChecked;
+                        updateRowSelection(dragStartIndex, dragStartChecked);
+                        updateSelectedCount();
+                    }
+                }
+            }
+            
+            if (isDragging) {
+                updateSelectedCount();
+            }
+            
+            isDragging = false;
+            dragStartIndex = null;
+            dragStartChecked = null;
+            mouseDownTime = null;
+            mouseDownPosition = null;
+            currentMousePosition = null;
+        }
+        
+        window.sortTable = function(column) {
+            if (!originalInvoiceItems || originalInvoiceItems.length === 0) return;
+            
+            // Determine sort direction
+            let direction = 'asc';
+            if (sortState.column === column && sortState.direction === 'asc') {
+                direction = 'desc';
+            }
+            
+            // Update sort state
+            sortState.column = column;
+            sortState.direction = direction;
+            
+            // Create a deep copy of original items to sort (always sort from original)
+            const sortedItems = JSON.parse(JSON.stringify(originalInvoiceItems));
+            
+            // Sort based on column
+            sortedItems.sort((a, b) => {
+                let aVal, bVal;
+                
+                if (column === 'date') {
+                    // Parse dates for comparison
+                    aVal = a.date ? new Date(a.date) : new Date(0);
+                    bVal = b.date ? new Date(b.date) : new Date(0);
+                } else if (column === 'mob') {
+                    // Alphabetical sorting for MOB
+                    aVal = (a.mob || '').toLowerCase();
+                    bVal = (b.mob || '').toLowerCase();
+                } else {
+                    return 0;
+                }
+                
+                if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            // Update indicators
+            updateSortIndicators(column, direction);
+            
+            // Re-render table with sorted items
+            populateInvoiceItemsTable(sortedItems);
+        }
+        
+        function updateSortIndicators(activeColumn, direction) {
+            // Reset all indicators
+            document.getElementById('sort-date-indicator').textContent = '';
+            document.getElementById('sort-mob-indicator').textContent = '';
+            
+            // Set active indicator if column and direction are provided
+            if (activeColumn && direction) {
+                const indicator = direction === 'asc' ? '↑' : '↓';
+                if (activeColumn === 'date') {
+                    document.getElementById('sort-date-indicator').textContent = indicator;
+                } else if (activeColumn === 'mob') {
+                    document.getElementById('sort-mob-indicator').textContent = indicator;
+                }
+            }
+        }
+        
+        window.toggleSelectAll = function() {
+            const selectAllCheckbox = document.getElementById('select-all-checkbox');
+            const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+            const isChecked = selectAllCheckbox.checked;
+            
+            itemCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+                const row = document.getElementById(`invoice-row-${checkbox.getAttribute('data-index')}`);
+                if (row) {
+                    if (isChecked) {
+                        row.classList.add('bg-blue-50');
+                    } else {
+                        row.classList.remove('bg-blue-50');
+                    }
+                }
+            });
+            
+            updateSelectedCount();
+        };
+        
+        window.updateSelectedCount = function() {
+            const selectedCheckboxes = document.querySelectorAll('.item-checkbox:checked');
+            const count = selectedCheckboxes.length;
+            const countElement = document.getElementById('selected-count');
+            
+            if (countElement) {
+                countElement.textContent = `${count} item${count !== 1 ? 's' : ''} selected`;
+            }
+            
+            // Update row highlighting
+            document.querySelectorAll('.item-checkbox').forEach(checkbox => {
+                const index = checkbox.getAttribute('data-index');
+                const row = document.getElementById(`invoice-row-${index}`);
+                
+                if (row) {
+                    if (checkbox.checked) {
+                        row.classList.add('bg-blue-50');
+                    } else {
+                        row.classList.remove('bg-blue-50');
+                    }
+                }
+            });
+            
+            // Update select all checkbox state
+            const allCheckboxes = document.querySelectorAll('.item-checkbox');
+            const selectAllCheckbox = document.getElementById('select-all-checkbox');
+            if (selectAllCheckbox && allCheckboxes.length > 0) {
+                const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked;
+                selectAllCheckbox.indeterminate = someChecked && !allChecked;
+            }
+        };
+        
+        window.calculateSelectedTotals = function() {
+            const jobPrice = parseFloat(document.getElementById('job-price-flat').value) || 0;
+            const mileageIncluded = parseFloat(document.getElementById('mileage-included').value) || 0;
+            const mileageCharge = parseFloat(document.getElementById('mileage-charge').value) || 0;
+            
+            if (!jobPrice) {
+                alert('Please enter a Job Price (Flat) first');
+                return;
+            }
+            
+            // Get selected checkboxes
+            const selectedCheckboxes = document.querySelectorAll('.item-checkbox:checked');
+            
+            if (selectedCheckboxes.length === 0) {
+                alert('Please select at least one item to calculate');
+                return;
+            }
+            
+            // Process only selected items
+            selectedCheckboxes.forEach(checkbox => {
+                const index = checkbox.getAttribute('data-index');
+                
+                // Set job_pounds for this item
+                const jobPoundsInput = document.querySelector(`.item-job-pounds[data-index="${index}"]`);
+                if (jobPoundsInput) {
+                    jobPoundsInput.value = jobPrice.toFixed(2);
+                }
+                
+                // Get actual mileage
+                const totalInput = document.querySelector(`.item-total[data-index="${index}"]`);
+                if (!totalInput) return;
+                
+                const actualMileage = parseFloat(totalInput.getAttribute('data-actual-mileage')) || 0;
+                
+                // Calculate mileage charge amount
+                let milesChargeAmount = 0;
+                if (actualMileage > mileageIncluded) {
+                    const extraMiles = actualMileage - mileageIncluded;
+                    // Round up to the next whole integer
+                    const extraMilesRounded = Math.ceil(extraMiles);
+                    milesChargeAmount = extraMilesRounded * mileageCharge;
+                }
+                
+                // Update miles_pounds with the calculated mileage charge
+                const milesPoundsInput = document.querySelector(`.item-miles-pounds[data-index="${index}"]`);
+                if (milesPoundsInput) {
+                    milesPoundsInput.value = milesChargeAmount.toFixed(2);
+                }
+                
+                // Update the total for this row (Wait + Miles + Job)
+                updateRowTotal(index);
+            });
+        };
+        
+
+        // Handle preview
+        document.getElementById('preview-btn').addEventListener('click', async () => {
+            if (!currentSessionId) return;
+            
+            const formData = collectFormData();
+            const formDataToSend = new FormData();
+            formDataToSend.append('session_id', currentSessionId);
+            formDataToSend.append('invoice_data_json', JSON.stringify(formData));
+            
+            try {
+                const response = await fetch('/api/update-invoice', {
+                    method: 'POST',
+                    body: formDataToSend
+                });
+                
+                if (!response.ok) throw new Error('Preview failed');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                showError('Failed to generate preview');
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('invoice-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!currentSessionId) {
+                showError('Please upload a CSV file first');
+                return;
+            }
+            
+            const formData = collectFormData();
+            
+            // Update the invoice data in allInvoices array to preserve changes
+            if (allInvoices[currentInvoiceIndex]) {
+                allInvoices[currentInvoiceIndex].invoice_data = formData;
+            }
+            
+            const formDataToSend = new FormData();
+            formDataToSend.append('session_id', currentSessionId);
+            formDataToSend.append('invoice_data_json', JSON.stringify(formData));
+            
+            try {
+                const response = await fetch('/api/update-invoice', {
+                    method: 'POST',
+                    body: formDataToSend
+                });
+                
+                if (!response.ok) throw new Error('Generation failed');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const currentFilename = allInvoices[currentInvoiceIndex]?.filename || 'invoice';
+                a.download = currentFilename.replace('.csv', '.html');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                document.getElementById('success').classList.remove('hidden');
+            } catch (error) {
+                showError('Failed to generate invoice');
+            }
+        });
+
+        function collectFormData() {
+            // Filter out items where both date and our_ref are 'nan' or empty
+            const validItems = currentInvoiceData.invoice.items.filter(item => {
+                const dateIsNan = !item.date || item.date.toLowerCase() === 'nan' || String(item.date).trim() === '';
+                const refIsNan = !item.our_ref || item.our_ref.toLowerCase() === 'nan' || String(item.our_ref).trim() === '';
+                return !(dateIsNan && refIsNan);
+            });
+            
+            // Collect updated invoice items with edited financial values
+            // Map only the valid items that are displayed in the table
+            const updatedItems = currentInvoiceItems.map((item, index) => {
+                const waitPoundsInput = document.querySelector(`.item-wait-pounds[data-index="${index}"]`);
+                const milesPoundsInput = document.querySelector(`.item-miles-pounds[data-index="${index}"]`);
+                const jobPoundsInput = document.querySelector(`.item-job-pounds[data-index="${index}"]`);
+                const totalInput = document.querySelector(`.item-total[data-index="${index}"]`);
+                
+                return {
+                    ...item,
+                    wait_pounds: waitPoundsInput ? waitPoundsInput.value : item.wait_pounds,
+                    miles_pounds: milesPoundsInput ? milesPoundsInput.value : item.miles_pounds,
+                    job_pounds: jobPoundsInput ? jobPoundsInput.value : item.job_pounds,
+                    total: totalInput ? totalInput.value : item.total
+                };
+            });
+            
+            return {
+                patient: {
+                    name: document.getElementById('patient-name').value,
+                    address: document.getElementById('patient-address').value,
+                    postcode: document.getElementById('patient-postcode').value
+                },
+                invoice: {
+                    ...currentInvoiceData.invoice,
+                    number: document.getElementById('invoice-number').value,
+                    date: document.getElementById('invoice-date').value,
+                    account_ref: document.getElementById('account-ref').value,
+                    ref: document.getElementById('ref').value,
+                    po_number: document.getElementById('po-number').value,
+                    payment_terms: document.getElementById('payment-terms').value,
+                    period: document.getElementById('period').value,
+                    items: updatedItems
+                },
+                financial: {
+                    net: document.getElementById('net').value,
+                    net_label: document.getElementById('net-label').value,
+                    discount: document.getElementById('discount').value,
+                    discount_label: document.getElementById('discount-label').value,
+                    subtotal: document.getElementById('subtotal').value,
+                    subtotal_label: document.getElementById('subtotal-label').value,
+                    vat_amount: document.getElementById('vat-amount').value,
+                    vat_label: document.getElementById('vat-label').value,
+                    total: document.getElementById('total').value,
+                    total_label: document.getElementById('total-label').value
+                },
+                bank: {
+                    name: 'Lloyds Bank Plc',
+                    account_name: 'Starcross Trading Limited',
+                    account_number: '82082760',
+                    sort_code: '30-99-21'
+                }
+            };
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.querySelector('p').textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
+
