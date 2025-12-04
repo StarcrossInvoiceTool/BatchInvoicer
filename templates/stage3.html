@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stage 2: CSV to Invoice - Batch Invoicer</title>
+    <title>Stage 3: Edit Saved Invoice - Batch Invoicer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -19,56 +19,39 @@
         <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
             <div class="mb-6">
                 <a href="/" class="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">← Back to Home</a>
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">Stage 2: CSV to Invoice</h1>
-                <p class="text-gray-600">Upload a CSV file, edit invoice details, and generate HTML invoice</p>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Stage 3: Edit Saved Invoice</h1>
+                <p class="text-gray-600">Upload a saved HTML invoice draft, edit invoice details, and regenerate the invoice</p>
             </div>
 
-            <!-- CSV Upload Section -->
+            <!-- HTML Upload Section -->
             <div id="upload-section" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
                 <form id="upload-form" enctype="multipart/form-data">
                     <div class="mb-4">
-                        <label for="csv_file" class="block text-sm font-medium text-gray-700 mb-2">
-                            Select CSV File(s) - You can upload multiple files at once
+                        <label for="html_file" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select HTML Invoice File
                         </label>
                         <input 
                             type="file" 
-                            id="csv_file" 
+                            id="html_file" 
                             name="file"
-                            accept=".csv"
-                            multiple
+                            accept=".html"
                             required
-                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
                         >
-                        <p class="mt-2 text-xs text-gray-500">Hold Ctrl (or Cmd on Mac) to select multiple files</p>
+                        <p class="mt-2 text-xs text-gray-500">Upload a saved HTML invoice draft to edit</p>
                     </div>
                     <button 
                         type="submit"
-                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                     >
-                        Upload and Process CSV(s)
+                        Upload and Parse HTML Invoice
                     </button>
                 </form>
             </div>
 
-            <!-- Invoice List Section (hidden initially) -->
-            <div id="invoice-list-section" class="hidden bg-white rounded-lg shadow-2xl p-8 mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold text-gray-800">Invoices</h2>
-                    <button 
-                        id="download-all-btn"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
-                    >
-                        Download All as ZIP
-                    </button>
-                </div>
-                <div id="invoice-list" class="space-y-2">
-                    <!-- Invoice list items will be populated here -->
-                </div>
-            </div>
-
             <div id="loading" class="hidden text-center py-4">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                <p class="mt-2 text-gray-600">Processing CSV file...</p>
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                <p class="mt-2 text-gray-600">Processing HTML invoice...</p>
             </div>
 
             <div id="error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -82,20 +65,6 @@
                 <div>
                     <h2 class="text-2xl font-bold text-gray-800">Edit Invoice Details</h2>
                     <p id="current-invoice-name" class="text-sm text-gray-500 mt-1"></p>
-                </div>
-                <div class="flex gap-2" id="invoice-navigation" style="display: none;">
-                    <button 
-                        id="prev-invoice-btn"
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
-                    >
-                        ← Previous
-                    </button>
-                    <button 
-                        id="next-invoice-btn"
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
-                    >
-                        Next →
-                    </button>
                 </div>
             </div>
             
@@ -401,33 +370,27 @@
         let mouseDownTime = null;
         let mouseDownPosition = null;
         let currentMousePosition = null;
-        let batchSessionId = null;
-        let allInvoices = [];
-        let currentInvoiceIndex = 0;
 
-        // Handle CSV upload
+        // Handle HTML upload
         document.getElementById('upload-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData();
-            const fileInput = document.getElementById('csv_file');
+            const fileInput = document.getElementById('html_file');
             
             if (!fileInput.files || fileInput.files.length === 0) {
-                showError('Please select at least one CSV file');
+                showError('Please select an HTML file');
                 return;
             }
             
-            // Append all selected files
-            for (let i = 0; i < fileInput.files.length; i++) {
-                formData.append('files', fileInput.files[i]);
-            }
+            formData.append('file', fileInput.files[0]);
             
             document.getElementById('upload-section').classList.add('hidden');
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('error').classList.add('hidden');
             
             try {
-                const response = await fetch('/api/upload-csv', {
+                const response = await fetch('/api/upload-html', {
                     method: 'POST',
                     body: formData
                 });
@@ -438,20 +401,14 @@
                 }
                 
                 const data = await response.json();
-                batchSessionId = data.batch_session_id;
-                allInvoices = data.invoices;
-                currentInvoiceIndex = 0;
+                currentSessionId = data.session_id;
+                currentInvoiceData = data.invoice_data;
                 
-                // Populate invoice list
-                populateInvoiceList(data.invoices);
-                
-                // Load first invoice
-                if (data.invoices.length > 0) {
-                    loadInvoice(data.invoices[0]);
-                }
+                // Load the invoice
+                populateForm(data.invoice_data);
+                document.getElementById('current-invoice-name').textContent = data.filename;
                 
                 document.getElementById('loading').classList.add('hidden');
-                document.getElementById('invoice-list-section').classList.remove('hidden');
                 document.getElementById('editing-section').classList.remove('hidden');
                 
             } catch (error) {
@@ -461,155 +418,6 @@
             }
         });
 
-        function populateInvoiceList(invoices) {
-            const invoiceList = document.getElementById('invoice-list');
-            invoiceList.innerHTML = '';
-            
-            invoices.forEach((invoice, index) => {
-                const invoiceItem = document.createElement('div');
-                invoiceItem.className = `flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 ${index === currentInvoiceIndex ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}`;
-                invoiceItem.onclick = () => {
-                    currentInvoiceIndex = index;
-                    loadInvoice(invoice);
-                    // Update active state
-                    document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
-                        if (idx === index) {
-                            item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
-                        } else {
-                            item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
-                        }
-                    });
-                };
-                
-                invoiceItem.innerHTML = `
-                    <div class="flex-1">
-                        <p class="font-semibold text-gray-800">${invoice.filename}</p>
-                        <p class="text-sm text-gray-500">Invoice ${index + 1} of ${invoices.length}</p>
-                    </div>
-                    <button 
-                        onclick="event.stopPropagation(); downloadSingleInvoice('${invoice.session_id}', '${invoice.filename}')"
-                        class="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm"
-                    >
-                        Download
-                    </button>
-                `;
-                
-                invoiceList.appendChild(invoiceItem);
-            });
-            
-            // Show/hide navigation buttons
-            const navButtons = document.getElementById('invoice-navigation');
-            if (invoices.length > 1) {
-                navButtons.style.display = 'flex';
-            } else {
-                navButtons.style.display = 'none';
-            }
-        }
-
-        function loadInvoice(invoice) {
-            // Save current invoice data before switching (if we have changes)
-            if (currentSessionId && currentInvoiceData) {
-                const currentInvoice = allInvoices.find(inv => inv.session_id === currentSessionId);
-                if (currentInvoice) {
-                    const formData = collectFormData();
-                    currentInvoice.invoice_data = formData;
-                }
-            }
-            
-            currentSessionId = invoice.session_id;
-            currentInvoiceData = invoice.invoice_data;
-            populateForm(invoice.invoice_data);
-            document.getElementById('current-invoice-name').textContent = invoice.filename;
-            
-            // Update navigation buttons
-            document.getElementById('prev-invoice-btn').disabled = currentInvoiceIndex === 0;
-            document.getElementById('next-invoice-btn').disabled = currentInvoiceIndex === allInvoices.length - 1;
-        }
-
-        // Navigation buttons
-        document.getElementById('prev-invoice-btn').addEventListener('click', () => {
-            if (currentInvoiceIndex > 0) {
-                currentInvoiceIndex--;
-                loadInvoice(allInvoices[currentInvoiceIndex]);
-                // Update list highlighting
-                document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
-                    if (idx === currentInvoiceIndex) {
-                        item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
-                    } else {
-                        item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
-                    }
-                });
-            }
-        });
-
-        document.getElementById('next-invoice-btn').addEventListener('click', () => {
-            if (currentInvoiceIndex < allInvoices.length - 1) {
-                currentInvoiceIndex++;
-                loadInvoice(allInvoices[currentInvoiceIndex]);
-                // Update list highlighting
-                document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
-                    if (idx === currentInvoiceIndex) {
-                        item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
-                    } else {
-                        item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
-                    }
-                });
-            }
-        });
-
-        async function downloadSingleInvoice(sessionId, filename) {
-            try {
-                const response = await fetch(`/api/download-invoice/${sessionId}`, {
-                    method: 'POST'
-                });
-                
-                if (!response.ok) throw new Error('Download failed');
-                
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename.replace('.csv', '.html');
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            } catch (error) {
-                showError('Failed to download invoice');
-            }
-        }
-
-        // Download all invoices
-        document.getElementById('download-all-btn').addEventListener('click', async () => {
-            if (!batchSessionId) {
-                showError('No batch session found');
-                return;
-            }
-            
-            try {
-                const formData = new FormData();
-                formData.append('batch_session_id', batchSessionId);
-                
-                const response = await fetch('/api/download-all-invoices', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error('Download failed');
-                
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `invoices_${batchSessionId}.zip`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            } catch (error) {
-                showError('Failed to download all invoices');
-            }
-        });
 
         // Helper function to format our_ref (remove .0 suffix)
         function formatOurRef(ref) {
@@ -937,8 +745,8 @@
                         bVal = (b.mob || '').toLowerCase();
                     } else if (column === 'miles') {
                         // Numeric sorting for miles
-                        aVal = parseFloat(a.miles) || 0;
-                        bVal = parseFloat(b.miles) || 0;
+                        aVal = formatMilesForCalculation(a.miles);
+                        bVal = formatMilesForCalculation(b.miles);
                     } else {
                         continue; // Skip unknown columns
                     }
@@ -1133,7 +941,7 @@
             e.preventDefault();
             
             if (!currentSessionId) {
-                showError('Please upload a CSV file first');
+                showError('Please upload an HTML invoice file first');
                 return;
             }
             
@@ -1145,11 +953,6 @@
             }
             
             const formData = collectFormData();
-            
-            // Update the invoice data in allInvoices array to preserve changes
-            if (allInvoices[currentInvoiceIndex]) {
-                allInvoices[currentInvoiceIndex].invoice_data = formData;
-            }
             
             const formDataToSend = new FormData();
             formDataToSend.append('session_id', currentSessionId);
@@ -1167,8 +970,8 @@
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                const currentFilename = allInvoices[currentInvoiceIndex]?.filename || 'invoice';
-                a.download = currentFilename.replace('.csv', '.html');
+                const currentFilename = document.getElementById('current-invoice-name').textContent || 'invoice';
+                a.download = currentFilename.endsWith('.html') ? currentFilename : currentFilename + '.html';
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);

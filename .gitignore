@@ -65,3 +65,6 @@ BatchInvoicer/
 # Logs
 *.log
 logs/
+
+# Azure deployment files (keep these, but ignore any local Azure config)
+.azure/

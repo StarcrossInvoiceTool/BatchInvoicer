@@ -41,15 +41,15 @@ def render_invoice_html(invoice_data_pkl_path, template_name='Invoice 2.html', o
     
     # Fix image path for standalone HTML (change /static/ to relative path)
     # Check if image exists in templates directory, otherwise use static
-    templates_img = Path(__file__).parent / 'templates' / 'Picture1.jpg'
-    static_img = Path(__file__).parent / 'static' / 'Picture1.jpg'
+    templates_img = Path(__file__).parent / 'templates' / 'bears-pts logo.jpg'
+    static_img = Path(__file__).parent / 'static' / 'bears-pts logo.jpg'
     
     if templates_img.exists():
         # Use relative path to templates directory
-        rendered_html = rendered_html.replace('/static/Picture1.jpg', 'templates/Picture1.jpg')
+        rendered_html = rendered_html.replace('/static/bears-pts logo.jpg', 'templates/bears-pts logo.jpg')
     elif static_img.exists():
         # Use relative path to static directory
-        rendered_html = rendered_html.replace('/static/Picture1.jpg', 'static/Picture1.jpg')
+        rendered_html = rendered_html.replace('/static/bears-pts logo.jpg', 'static/bears-pts logo.jpg')
     
     # Create "invoice html" folder if it doesn't exist
     invoice_html_dir = Path(__file__).parent / 'invoice html'

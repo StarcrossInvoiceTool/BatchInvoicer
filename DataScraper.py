@@ -46,6 +46,24 @@ def clean_value(value):
     return value_str
 
 
+def clean_miles_value(value):
+    """
+    Clean a mileage value from DataFrame, handling NaN and empty values.
+    Returns "0.0" if value is NaN, None, or empty (instead of empty string).
+    """
+    if pd.isna(value) or value is None or str(value).strip() == '' or str(value).lower() == 'nan':
+        return '0.0'
+    
+    # Convert to string and strip whitespace
+    value_str = str(value).strip()
+    
+    # If it's still empty or nan after stripping, return 0.0
+    if value_str == '' or value_str.lower() == 'nan':
+        return '0.0'
+    
+    return value_str
+
+
 def get_column_value(row, possible_names):
     """
     Get a value from a row trying multiple possible column names.
@@ -113,7 +131,7 @@ def transform_dataframe_to_invoice_data(df):
             'mob': clean_value(row.get('Mobility Abbreviation', '')),
             'wait_pounds': '',  # Financial field, to be filled later
             'wait_notes': str(row.get('Waiting Time Reason', '')),
-            'miles': str(row.get('Actual Mileage', '')),
+            'miles': clean_miles_value(row.get('Actual Mileage', '')),
             'charged': '',  # Not in source data, left empty
             'miles_pounds': '',  # Financial field, to be filled later
             'job_pounds': '',  # Financial field, to be filled later
@@ -155,7 +173,10 @@ def transform_dataframe_to_invoice_data(df):
             'account_name': 'Starcross Trading Limited',
             'account_number': '82082760',
             'sort_code': '30-99-21'
-        }
+        },
+        'paid': False,  # Flag to indicate if invoice is marked as paid
+        'style': 'style1',  # Invoice style: 'style1' (detailed) or 'style2' (simplified)
+        'item_name': ''  # Item name for Style 2 (defaults to patient name if empty)
     }
     
     return invoice_data

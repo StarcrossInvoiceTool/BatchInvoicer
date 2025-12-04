@@ -8,4 +8,5 @@ aiofiles>=23.2.0
 itsdangerous>=2.1.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+beautifulsoup4>=4.12.0
 

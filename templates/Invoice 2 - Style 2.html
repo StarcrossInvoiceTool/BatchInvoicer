@@ -131,6 +131,7 @@
         .col-span-3 { grid-column: span 3 / span 3; }
         .col-span-4 { grid-column: span 4 / span 4; }
         .col-span-5 { grid-column: span 5 / span 5; }
+        .col-span-22 { grid-column: span 22 / span 22; }
         .col-start-1 { grid-column-start: 1; }
         .col-start-3 { grid-column-start: 3; }
         .col-start-5 { grid-column-start: 5; }
@@ -242,40 +243,10 @@
                 padding-bottom: 1in !important;
             }
             
-            /* Limit to 13 line items per page */
+            /* Prevent line items from breaking across pages */
             .invoice-line-item {
                 page-break-inside: avoid;
                 break-inside: avoid;
-            }
-            
-            /* First page: 13 items, then 14 items per subsequent page */
-            /* Break after items at positions: 13, 27, 41, 55, 69... (14n-1 where n>=1) */
-            .invoice-items-container .invoice-line-item:nth-child(14n-1) {
-                page-break-after: always;
-                break-after: page;
-            }
-            
-            /* Style for repeating header on new pages */
-            .repeating-header-grid {
-                display: block !important;
-                page-break-inside: avoid;
-                break-inside: avoid;
-                page-break-after: avoid;
-                break-after: avoid;
-            }
-            
-            /* Ensure header grid doesn't break */
-            .header-grid,
-            .repeating-header-grid .header-grid {
-                display: grid !important;
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            
-            /* Make sure repeating header is visible */
-            .repeating-header-grid hr,
-            .repeating-header-grid .header-grid {
-                display: block !important;
             }
             
             /* Hide the screen-only elements in print mode */
@@ -290,18 +261,6 @@
             
             /* Prevent line items from breaking across pages */
             .data-grid {
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            
-            /* Ensure page breaks happen before dotted lines, not in the middle */
-            .dotted-line-bottom {
-                page-break-before: auto;
-                break-before: auto;
-            }
-            
-            /* Wrap each line item with its dotted line to keep them together */
-            .invoice-line-item {
                 page-break-inside: avoid;
                 break-inside: avoid;
             }
@@ -355,30 +314,30 @@
         }
 
         /*
-        * A single, precise grid for the headers. This ensures everything
-        * stays perfectly aligned, even with varying text lengths and
-        * blank columns. Using 24 columns for maximum flexibility.
+        * Simplified grid for Style 2 - just Item and Total
         */
-        .header-grid {
+        .header-grid-simple {
             display: grid;
-            grid-template-columns: repeat(24, minmax(0, 1fr));
-            gap: 0.25rem;
-            font-size: 6pt;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            font-size: 8pt;
             color: #4b5563;
             margin-top: 1rem;
             font-family: "Times New Roman", Times, serif;
+            padding: 0.5rem 0;
         }
 
-        .data-grid {
+        .data-grid-simple {
             display: grid;
-            grid-template-columns: repeat(24, minmax(0, 1fr));
-            gap: 0.25rem;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
             font-family: Arial, sans-serif;
-            font-size: 7pt; /* Changed to 7pt as requested */
+            font-size: 9pt;
+            padding: 0.75rem 0;
         }
 
-        .data-grid > span {
-            font-weight: normal; /* Ensured no bold font weight for data */
+        .data-grid-simple > span {
+            font-weight: normal;
         }
     </style>
 </head>
@@ -531,107 +490,26 @@
         </div>
     </div>
 
+    <!-- Second page with simplified line items -->
     <div class="page flex flex-col mt-8">
         <div class="flex-grow">
             <hr class="border-t-2 border-gray-800">
 
-            <div class="header-grid">
-                <span class="col-span-2 font-bold">DATE</span>
-                <span class="col-span-2 font-bold">OUR REF</span>
-                <span class="col-span-2 font-bold">CLIENT REF</span>
-                <span class="col-span-2 font-bold">NHS NUMBER</span>
-                <span class="col-span-3 font-bold">CONTRACT HOSPITAL</span>
-                <span class="col-span-4"></span>
-                <span class="col-span-2 font-bold">BOOKED BY</span>
-                <span class="col-span-2 font-bold">FROM</span>
-                <span class="col-span-5 font-bold">TO</span>
-
-                <span class="col-start-1 col-span-2 font-bold">STATUS</span>
-                <span class="col-start-3 col-span-2 font-bold">DIRECTIONS</span>
-                <span class="col-start-5 col-span-2 font-bold">MOB</span>
-                <span class="col-start-7 col-span-2 font-bold">WAIT £</span>
-                <span class="col-start-9 col-span-3 font-bold">WAIT NOTES</span>
-                <span class="col-start-12 col-span-2 font-bold">MILES</span>
-                <span class="col-start-14 col-span-2 font-bold">CHARGED</span>
-                <span class="col-start-16 col-span-2 font-bold">MILES £</span>
-                <span class="col-start-18 col-span-2 font-bold">JOB £</span>
-                <span class="col-start-20 col-span-5 font-bold">TOTAL</span>
+            <div class="header-grid-simple">
+                <span class="font-bold">Item</span>
+                <span class="font-bold text-right">Total</span>
             </div>
 
             <hr class="border-t border-gray-300 mt-2">
 
             <div class="invoice-items-container">
-            {% set valid_item_count = 0 %}
-            {% for item in data.invoice['items'] %}
-                {% set date_is_nan = (not item.date or item.date|lower == 'nan' or item.date|string|trim == '') %}
-                {% set ref_is_nan = (not item.our_ref or item.our_ref|lower == 'nan' or item.our_ref|string|trim == '') %}
-                {% if not (date_is_nan and ref_is_nan) %}
-                {% set valid_item_count = valid_item_count + 1 %}
-                {% if valid_item_count > 13 and (valid_item_count - 13) % 14 == 1 %}
-                <!-- Repeating header for new page (before item 14, 28, 42, etc.) -->
-                <div class="repeating-header-grid" style="page-break-before: always; break-before: page; margin-top: 1rem; margin-bottom: 1rem;">
-                    <hr class="border-t-2 border-gray-800">
-                    <div class="header-grid">
-                        <span class="col-span-2 font-bold">DATE</span>
-                        <span class="col-span-2 font-bold">OUR REF</span>
-                        <span class="col-span-2 font-bold">CLIENT REF</span>
-                        <span class="col-span-2 font-bold">NHS NUMBER</span>
-                        <span class="col-span-3 font-bold">CONTRACT HOSPITAL</span>
-                        <span class="col-span-4"></span>
-                        <span class="col-span-2 font-bold">BOOKED BY</span>
-                        <span class="col-span-2 font-bold">FROM</span>
-                        <span class="col-span-5 font-bold">TO</span>
-
-                        <span class="col-start-1 col-span-2 font-bold">STATUS</span>
-                        <span class="col-start-3 col-span-2 font-bold">DIRECTIONS</span>
-                        <span class="col-start-5 col-span-2 font-bold">MOB</span>
-                        <span class="col-start-7 col-span-2 font-bold">WAIT £</span>
-                        <span class="col-start-9 col-span-3 font-bold">WAIT NOTES</span>
-                        <span class="col-start-12 col-span-2 font-bold">MILES</span>
-                        <span class="col-start-14 col-span-2 font-bold">CHARGED</span>
-                        <span class="col-start-16 col-span-2 font-bold">MILES £</span>
-                        <span class="col-start-18 col-span-2 font-bold">JOB £</span>
-                        <span class="col-start-20 col-span-5 font-bold">TOTAL</span>
-                    </div>
-                    <hr class="border-t border-gray-300 mt-2">
-                </div>
-                {% endif %}
                 <div class="invoice-line-item">
-                    <div class="data-grid font-normal">
-                        <span class="col-span-2">{{ item.date | format_date_numeric }}</span>
-                        <span class="col-span-2">
-                            {% if item.our_ref|string|trim|length > 0 and item.our_ref|string|trim|lower != 'nan' %}
-                                {% set our_ref_str = item.our_ref|string|trim %}
-                                {% if our_ref_str|length >= 2 and our_ref_str[-2:] == '.0' %}
-                                    {{ our_ref_str[:-2] }}
-                                {% else %}
-                                    {{ our_ref_str }}
-                                {% endif %}
-                            {% endif %}
-                        </span>
-                        <span class="col-span-2">{{ item.client_ref }}</span>
-                        <span class="col-span-2">{{ item.nhs_number }}</span>
-                        <span class="col-span-3">{{ item.contract_hospital }}</span>
-                        <span class="col-span-4"></span>
-                        <span class="col-span-2">{{ item.booked_by }}</span>
-                        <span class="col-span-2">{{ item.from_location }}</span>
-                        <span class="col-span-5">{{ item.to_location }}</span>
-
-                        <span class="col-start-1 col-span-2">{{ item.status }}</span>
-                        <span class="col-start-3 col-span-2">{{ item.directions }}</span>
-                        <span class="col-start-5 col-span-2">{{ item.mob }}</span>
-                        <span class="col-start-7 col-span-2">{{ item.wait_pounds }}</span>
-                        <span class="col-start-9 col-span-3">{{ item.wait_notes }}</span>
-                        <span class="col-start-12 col-span-2">{% if item.miles and item.miles|lower != 'nan' and item.miles|string|trim != '' %}{{ item.miles }}{% else %}0.0{% endif %}</span>
-                        <span class="col-start-14 col-span-2">{% if item.charged and item.charged|string|trim != '' and item.charged|lower != 'nan' %}{{ item.charged }}{% else %}0{% endif %}</span>
-                        <span class="col-start-16 col-span-2">{% if item.miles_pounds %}£{{ item.miles_pounds }}{% endif %}</span>
-                        <span class="col-start-18 col-span-2">{% if item.job_pounds %}£{{ item.job_pounds }}{% endif %}</span>
-                        <span class="col-start-20 col-span-5 font-bold text-gray-800">{% if item.total %}£{{ item.total }}{% endif %}</span>
+                    <div class="data-grid-simple font-normal">
+                        <span>{{ data.item_name or data.patient.name }}</span>
+                        <span class="font-bold text-gray-800 text-right">{% if data.financial.total %}£{{ data.financial.total }}{% endif %}</span>
                     </div>
                     <hr class="dotted-line-bottom">
                 </div>
-                {% endif %}
-            {% endfor %}
             </div>
 
         </div>
@@ -644,3 +522,4 @@
     </div>
 </body>
 </html>
+
