@@ -505,7 +505,7 @@
             <div class="invoice-items-container">
                 <div class="invoice-line-item">
                     <div class="data-grid-simple font-normal">
-                        <span>{{ data.item_name or data.patient.name }}</span>
+                        <span style="white-space: pre-line;">{{ data.item_name or data.patient.name }}</span>
                         <span class="font-bold text-gray-800 text-right">{% if data.financial.total %}£{{ data.financial.total }}{% endif %}</span>
                     </div>
                     <hr class="dotted-line-bottom">
