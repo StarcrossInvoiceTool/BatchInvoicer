@@ -9,4 +9,8 @@ itsdangerous>=2.1.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 beautifulsoup4>=4.12.0
+fastapi-azure-auth>=4.0.0
+httpx>=0.24.0
+PyJWT>=2.8.0
+python-dotenv>=1.0.0
 

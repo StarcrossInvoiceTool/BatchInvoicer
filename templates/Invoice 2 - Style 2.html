@@ -418,7 +418,7 @@
                     <span class="text-gray-700">{{ data.financial.net_label }}</span>
                     <span class="text-gray-800">{% if data.financial.net %}£{{ data.financial.net }}{% endif %}</span>
                 </div>
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex justify-between items-center mb-4" style="margin-top: 0.5rem;">
                     <span class="text-gray-700">{{ data.financial.discount_label }}</span>
                     <span class="text-gray-800">{% if data.financial.discount %}£{{ data.financial.discount }}{% endif %}</span>
                 </div>
@@ -433,7 +433,7 @@
                 <hr class="border-t-2 border-black my-2">
 
                 <div class="flex justify-between items-center mb-4">
-                    <span class="text-gray-700">{{ data.financial.vat_label }}</span>
+                    <span class="text-gray-700">{{ data.financial.vat_label }}{% if data.financial.vat_percentage %} {{ data.financial.vat_percentage }}%{% endif %}</span>
                     <span class="text-gray-800">{% if data.financial.vat_amount %}£{{ data.financial.vat_amount }}{% endif %}</span>
                 </div>
                 <hr class="border-t-2 border-black my-2">

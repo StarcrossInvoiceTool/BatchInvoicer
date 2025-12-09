@@ -164,7 +164,8 @@ def transform_dataframe_to_invoice_data(df):
             'subtotal': '',  # To be filled via UI
             'subtotal_label': 'Invoice subtotal',  # Editable label
             'vat_amount': '',  # To be filled via UI
-            'vat_label': 'VAT 20%',  # Editable label
+            'vat_label': 'VAT',  # Editable label
+            'vat_percentage': '20',  # VAT percentage for calculation
             'total': '',  # To be filled via UI
             'total_label': 'TOTAL DUE'  # Editable label
         },

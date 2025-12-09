@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException, Dep
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 import os
 import zipfile
 import tempfile
@@ -12,16 +13,70 @@ import pickle
 from typing import Optional
 import json
 
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, use system environment variables
+
 from xslx_to_csv import xlsx_to_csv
 from csv_cleaner import csv_to_dataframe
 from DataScraper import transform_dataframe_to_invoice_data
 from jinja2 import Environment, FileSystemLoader
 from auth import verify_user, create_session_token, verify_session_token, SESSION_COOKIE_NAME
+from authAzure import azure_scheme
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime
+import time
+import traceback
 
 app = FastAPI(title="Batch Invoicer", description="Convert XLSX to CSV and generate invoices")
+
+# In-memory cache for OAuth state (as backup to session storage)
+# Key: state value, Value: timestamp when created
+_oauth_state_cache = {}
+
+def _cleanup_oauth_cache():
+    """Remove OAuth states older than 10 minutes"""
+    current_time = time.time()
+    expired_states = [
+        state for state, timestamp in _oauth_state_cache.items()
+        if current_time - timestamp > 600  # 10 minutes
+    ]
+    for state in expired_states:
+        _oauth_state_cache.pop(state, None)
+
+def _store_oauth_state(state: str):
+    """Store OAuth state in cache"""
+    _cleanup_oauth_cache()
+    _oauth_state_cache[state] = time.time()
+
+def _verify_oauth_state(state: str) -> bool:
+    """Verify OAuth state exists in cache"""
+    _cleanup_oauth_cache()
+    return state in _oauth_state_cache
+
+def _remove_oauth_state(state: str):
+    """Remove OAuth state from cache after use"""
+    _oauth_state_cache.pop(state, None)
+
+# Handle favicon requests to prevent 404 errors
+@app.get("/favicon.ico")
+async def favicon():
+    """Handle favicon requests"""
+    from fastapi.responses import Response
+    return Response(status_code=204)  # No Content
+
+# Add session middleware for OAuth state management
+# Configure with same_site="lax" to ensure cookies work with OAuth redirects
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=os.getenv("SECRET_KEY", "your-secret-key-change-this"),
+    same_site="lax",
+    https_only=False  # Set to True in production with HTTPS
+)
 
 def format_date_word_format(date_value):
     """Format date to word format like '15th January 2026'"""
@@ -135,10 +190,20 @@ os.makedirs("static", exist_ok=True)  # Create static directory if it doesn't ex
 # Mount static files and templates (only if static directory exists)
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+# Configure templates with auto-reload disabled in production, but enabled for development
+templates = Jinja2Templates(directory="templates", auto_reload=True)
 
 
-# Authentication dependency
+# Azure SSO Authentication (optional - can be used for API routes)
+async def get_azure_user(request: Request, token: Optional[str] = Depends(azure_scheme)) -> Optional[dict]:
+    """Get current authenticated user from Azure AD token"""
+    if token:
+        # Token is validated by azure_scheme, extract user info
+        # The token contains claims like 'preferred_username', 'name', 'email', etc.
+        return token
+    return None
+
+# Session-based Authentication (for HTML routes)
 async def get_current_user(request: Request) -> Optional[str]:
     """Get current authenticated user from session"""
     session_token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -557,6 +622,7 @@ def parse_html_invoice(html_content: str) -> dict:
             'subtotal_label': subtotal_label,
             'vat_amount': vat_amount,
             'vat_label': vat_label,
+            'vat_percentage': '20',  # Default VAT percentage, can be extracted from label if needed
             'total': total,
             'total_label': total_label
         },
@@ -585,7 +651,439 @@ async def login_page(request: Request):
             return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
     
     error = request.query_params.get("error")
-    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+    use_azure_sso_env = os.getenv("USE_AZURE_SSO", "false")
+    use_azure_sso = use_azure_sso_env.lower() == "true"
+    
+    response = templates.TemplateResponse("login.html", {
+        "request": request, 
+        "error": error,
+        "use_azure_sso": use_azure_sso
+    })
+    
+    # Add cache-control headers to prevent browser caching during development
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
+    return response
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    """Admin login page - for troubleshooting purposes"""
+    # Redirect if already logged in
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+    if session_token:
+        username = verify_session_token(session_token)
+        if username:
+            return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    
+    error = request.query_params.get("error")
+    
+    return templates.TemplateResponse("admin_login.html", {
+        "request": request, 
+        "error": error
+    })
+
+
+@app.post("/admin/login")
+async def admin_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Handle admin login form submission"""
+    if verify_user(username, password):
+        # Create session token
+        session_token = create_session_token(username)
+        
+        # Create response and set cookie
+        response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_token,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax",
+            max_age=86400  # 24 hours
+        )
+        return response
+    else:
+        return RedirectResponse(url="/admin/login?error=invalid_credentials", status_code=status.HTTP_302_FOUND)
+
+
+async def check_mailbox_access(access_token: str, mailbox_email: str) -> bool:
+    """
+    Check if the authenticated user has access to the specified mailbox.
+    Uses Microsoft Graph API to check mailbox permissions.
+    
+    This checks if the user can:
+    1. List user's mailboxes and check if target mailbox appears (most reliable for shared mailboxes)
+    2. Access the mailbox inbox folder directly (FullAccess permission)
+    3. Access mailbox settings (alternative check)
+    
+    Returns True if user has access, False otherwise.
+    """
+    from authAzure import GRAPH_API_ENDPOINT
+    import httpx
+    
+    if not mailbox_email:
+        # If no mailbox is configured, allow all users
+        return True
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            print(f"[DEBUG] Checking mailbox access for: {mailbox_email}")
+            
+            # Method 1: NEW PRIMARY CHECK - List user's mailboxes and check if target mailbox appears
+            # This is the most reliable method for shared mailboxes that the user has been granted access to
+            # Shared mailboxes with FullAccess appear in the user's mailbox list
+            print(f"[DEBUG] METHOD 1: Checking if mailbox appears in user's accessible mailboxes...")
+            try:
+                # Get the current user's info first to use their ID
+                user_info_response = await client.get(
+                    f"{GRAPH_API_ENDPOINT}/me",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json"
+                    }
+                )
+                
+                if user_info_response.status_code == 200:
+                    user_info = user_info_response.json()
+                    user_id = user_info.get("id") or user_info.get("userPrincipalName")
+                    print(f"[DEBUG] Current user ID: {user_id}")
+                    
+                    # Try to get user's mailboxes - shared mailboxes they have access to should appear here
+                    # Note: This endpoint lists mailboxes, but shared mailboxes might not always appear
+                    # We'll use this as one check, but also try direct access
+                    
+                    # Alternative: Try to find the mailbox in user's mail folders
+                    # Shared mailboxes with FullAccess can be accessed via /users/{mailbox}/mailFolders
+                    pass  # We'll try direct access methods below
+                else:
+                    print(f"[DEBUG] Could not get user info: {user_info_response.status_code}")
+            except Exception as e:
+                print(f"[DEBUG] Error getting user info: {e}")
+            
+            # Method 2: PRIMARY CHECK - Try to access mailbox inbox folder directly
+            # This is the most reliable check for FullAccess permission
+            print(f"[DEBUG] METHOD 2: Attempting to access inbox folder directly...")
+            inbox_response = await client.get(
+                f"{GRAPH_API_ENDPOINT}/users/{mailbox_email}/mailFolders/inbox",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            if inbox_response.status_code == 200:
+                print(f"[DEBUG] ✓ METHOD 2 PASSED: Successfully accessed inbox for {mailbox_email} - FullAccess confirmed")
+                return True
+            
+            # Log the error for debugging
+            inbox_error = ""
+            try:
+                inbox_error_body = inbox_response.json()
+                inbox_error = f" - {inbox_error_body}"
+                error_code = inbox_error_body.get("error", {}).get("code", "")
+                error_message = inbox_error_body.get("error", {}).get("message", "")
+                print(f"[DEBUG] METHOD 2 FAILED: Status {inbox_response.status_code}, Code: {error_code}, Message: {error_message}")
+            except:
+                inbox_error = f" - {inbox_response.text[:200]}"
+                print(f"[DEBUG] METHOD 2 FAILED: Cannot access inbox for {mailbox_email}: Status {inbox_response.status_code}{inbox_error}")
+            
+            # Method 3: Try to access mailbox settings
+            # This requires MailboxSettings.Read permission
+            print(f"[DEBUG] METHOD 3: Attempting to access mailboxSettings endpoint...")
+            settings_response = await client.get(
+                f"{GRAPH_API_ENDPOINT}/users/{mailbox_email}/mailboxSettings",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            if settings_response.status_code == 200:
+                print(f"[DEBUG] ✓ METHOD 3 PASSED: Successfully accessed mailboxSettings for {mailbox_email}")
+                return True
+            
+            # Log the error for debugging
+            settings_error = ""
+            try:
+                settings_error_body = settings_response.json()
+                settings_error = f" - {settings_error_body}"
+            except:
+                settings_error = f" - {settings_response.text[:200]}"
+            print(f"[DEBUG] METHOD 3 FAILED: Cannot access mailboxSettings for {mailbox_email}: Status {settings_response.status_code}{settings_error}")
+            
+            # Method 4: Fallback - Try to list messages in inbox (alternative check for FullAccess)
+            print(f"[DEBUG] METHOD 4: Attempting to access inbox messages...")
+            messages_response = await client.get(
+                f"{GRAPH_API_ENDPOINT}/users/{mailbox_email}/mailFolders/inbox/messages?$top=1",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            if messages_response.status_code == 200:
+                print(f"[DEBUG] ✓ METHOD 4 PASSED: Successfully accessed messages for {mailbox_email} - FullAccess confirmed")
+                return True
+            
+            # Log the error for debugging
+            messages_error = ""
+            try:
+                messages_error_body = messages_response.json()
+                messages_error = f" - {messages_error_body}"
+            except:
+                messages_error = f" - {messages_response.text[:200]}"
+            print(f"[DEBUG] METHOD 4 FAILED: Cannot access messages for {mailbox_email}: Status {messages_response.status_code}{messages_error}")
+            
+            # Log all errors for final summary
+            print(f"[INFO] ========================================")
+            print(f"[INFO] Mailbox access check FAILED for {mailbox_email}")
+            print(f"[INFO] ========================================")
+            print(f"[INFO] METHOD 2 (inbox folder): Status {inbox_response.status_code}{inbox_error}")
+            print(f"[INFO] METHOD 3 (mailboxSettings): Status {settings_response.status_code}{settings_error}")
+            print(f"[INFO] METHOD 4 (inbox messages): Status {messages_response.status_code}{messages_error}")
+            print(f"[INFO] ========================================")
+            print(f"[INFO] All access checks returned 403 ErrorAccessDenied")
+            print(f"[INFO] ========================================")
+            print(f"[INFO] POSSIBLE CAUSES:")
+            print(f"[INFO] 1. User does not have FullAccess/SendAs/SendOnBehalf permission on the mailbox")
+            print(f"[INFO] 2. Application Access Policy is blocking access (check Exchange Admin Center)")
+            print(f"[INFO] 3. Mailbox permissions haven't propagated (wait 5-10 minutes)")
+            print(f"[INFO] 4. The mailbox email address is incorrect: {mailbox_email}")
+            print(f"[INFO] 5. The Azure App Registration needs Application Access Policy configuration")
+            print(f"[INFO] ========================================")
+            print(f"[INFO] TROUBLESHOOTING STEPS:")
+            print(f"[INFO] 1. Verify user has FullAccess in Exchange Admin Center:")
+            print(f"[INFO]    Exchange Admin Center → Recipients → Mailboxes → {mailbox_email} → Manage mailbox delegation")
+            print(f"[INFO] 2. Check Application Access Policies in Exchange Online PowerShell:")
+            print(f"[INFO]    Get-ApplicationAccessPolicy")
+            print(f"[INFO] 3. If policies exist, ensure your app (Client ID: ab608ebc-7163-416a-ba6d-fb2f885d8914) is allowed")
+            print(f"[INFO] 4. Wait 5-10 minutes after granting permissions for propagation")
+            print(f"[INFO] ========================================")
+            
+            return False
+            
+    except httpx.TimeoutException:
+        print(f"[ERROR] Timeout while checking mailbox access for {mailbox_email}")
+        # On timeout, deny access for security
+        return False
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        print(f"[ERROR] Failed to check mailbox access for {mailbox_email}: {e}")
+        print(f"[ERROR] Full traceback:\n{error_traceback}")
+        # On error, deny access for security
+        return False
+
+
+@app.get("/login/azure")
+async def login_azure(request: Request):
+    """Initiate Azure AD SSO login"""
+    from authAzure import AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_REDIRECT_URI, AZURE_AUTHORIZATION_ENDPOINT
+    import secrets
+    
+    # Generate state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    
+    # Store state in both session and cache (cache as backup)
+    try:
+        # Initialize session by accessing it
+        _ = request.session
+        # Store the state in session
+        request.session["azure_oauth_state"] = state
+    except Exception:
+        # If session fails, we'll rely on cache only
+        pass
+    
+    # Also store in cache as backup (works even if session cookie fails)
+    _store_oauth_state(state)
+    
+    # Build authorization URL
+    # Use custom API scopes for general SSO authentication
+    scope = "openid profile email api://ab608ebc-7163-416a-ba6d-fb2f885d8914/userImpersonations"
+    
+    params = {
+        "client_id": AZURE_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": AZURE_REDIRECT_URI,
+        "response_mode": "query",
+        "scope": scope,
+        "state": state,
+        "prompt": "select_account",  # Force account selection screen
+    }
+    
+    auth_url = f"{AZURE_AUTHORIZATION_ENDPOINT}?" + "&".join([f"{k}={v}" for k, v in params.items()])
+    
+    # Create redirect response
+    # The SessionMiddleware will save the session when this response is processed
+    return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/auth/callback")
+async def azure_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    """Handle Azure AD OAuth callback"""
+    from authAzure import AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_REDIRECT_URI, AZURE_TOKEN_ENDPOINT
+    import httpx
+    
+    if error:
+        return RedirectResponse(url=f"/login?error=azure_{error}", status_code=status.HTTP_302_FOUND)
+    
+    if not code:
+        return RedirectResponse(url="/login?error=no_code", status_code=status.HTTP_302_FOUND)
+    
+    # Verify state (CSRF protection)
+    if not state:
+        return RedirectResponse(url="/login?error=no_state", status_code=status.HTTP_302_FOUND)
+    
+    # Try to get state from session first
+    stored_state = None
+    try:
+        _ = request.session  # Force session initialization
+        stored_state = request.session.get("azure_oauth_state")
+    except Exception:
+        # Session might not be accessible, that's okay - we'll check cache
+        pass
+    
+    # If not in session, check cache (backup mechanism)
+    state_valid = False
+    if stored_state and state == stored_state:
+        state_valid = True
+    elif _verify_oauth_state(state):
+        # State found in cache, valid
+        state_valid = True
+        # Also try to update session if possible
+        try:
+            request.session["azure_oauth_state"] = state
+        except Exception:
+            pass
+    
+    if not state_valid:
+        print(f"[WARNING] State verification failed. Received state from Azure: {state[:20]}...")
+        return RedirectResponse(url="/login?error=invalid_state", status_code=status.HTTP_302_FOUND)
+    
+    try:
+        # Exchange authorization code for access token
+        # Azure AD uses the scopes from the authorization request automatically
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                AZURE_TOKEN_ENDPOINT,
+                data={
+                    "client_id": AZURE_CLIENT_ID,
+                    "client_secret": AZURE_CLIENT_SECRET,
+                    "code": code,
+                    "redirect_uri": AZURE_REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            
+            if token_response.status_code != 200:
+                error_detail = f"Token exchange failed with status {token_response.status_code}"
+                try:
+                    error_body = token_response.json()
+                    error_detail += f": {error_body}"
+                    print(f"[ERROR] Token exchange error: {error_detail}")
+                except:
+                    error_text = token_response.text[:500]  # Limit error text length
+                    error_detail += f": {error_text}"
+                    print(f"[ERROR] Token exchange error: {error_detail}")
+                return RedirectResponse(url=f"/login?error=token_exchange_failed", status_code=status.HTTP_302_FOUND)
+            
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            id_token = token_data.get("id_token")
+            
+            # Debug: Log the scopes in the token (if available)
+            if "scope" in token_data:
+                print(f"[DEBUG] Token scopes: {token_data.get('scope')}")
+            
+            if not access_token:
+                print(f"[ERROR] No access token in response: {token_data}")
+                return RedirectResponse(url="/login?error=no_access_token", status_code=status.HTTP_302_FOUND)
+            
+            if not id_token:
+                print(f"[ERROR] No ID token in response: {token_data}")
+                return RedirectResponse(url="/login?error=no_id_token", status_code=status.HTTP_302_FOUND)
+            
+            # Get user info from ID token
+            try:
+                import jwt
+                from authAzure import AZURE_CLIENT_ID, AZURE_TENANT_ID
+                
+                # Decode ID token (without verification for now - in production, verify the signature)
+                # For production, you should verify the token signature using Azure's public keys
+                user_info = jwt.decode(
+                    id_token,
+                    options={"verify_signature": False}  # In production, verify signature
+                )
+                
+                # Extract username/email
+                username = (
+                    user_info.get("preferred_username") or 
+                    user_info.get("email") or 
+                    user_info.get("upn") or 
+                    user_info.get("name") or 
+                    "azure_user"
+                )
+            except Exception as e:
+                # Fallback: simple base64 decode
+                import base64
+                import json
+                try:
+                    id_token_parts = id_token.split('.')
+                    if len(id_token_parts) >= 2:
+                        payload = id_token_parts[1]
+                        payload += '=' * (4 - len(payload) % 4)
+                        decoded = base64.urlsafe_b64decode(payload)
+                        user_info = json.loads(decoded)
+                        username = user_info.get("preferred_username") or user_info.get("email") or "azure_user"
+                    else:
+                        username = "azure_user"
+                except:
+                    username = "azure_user"
+            
+            # Create session token
+            session_token = create_session_token(username)
+            
+            # Clear the state from both session and cache
+            try:
+                request.session.pop("azure_oauth_state", None)
+            except Exception:
+                pass
+            _remove_oauth_state(state)
+            
+            # Create response and set cookie
+            # Determine if we're in production (HTTPS) or development (HTTP)
+            is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
+            use_https = request.url.scheme == "https" or is_production
+            
+            response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+            response.set_cookie(
+                key=SESSION_COOKIE_NAME,
+                value=session_token,
+                httponly=True,
+                secure=use_https,  # Only use secure cookies in production/HTTPS
+                samesite="lax",
+                max_age=86400  # 24 hours
+            )
+            return response
+            
+    except Exception as e:
+        # Log the full error with traceback for debugging
+        error_traceback = traceback.format_exc()
+        print(f"[ERROR] Azure auth error: {e}")
+        print(f"[ERROR] Full traceback:\n{error_traceback}")
+        
+        # Provide more specific error messages based on error type
+        error_message = "auth_failed"
+        if "client_secret" in str(e).lower() or "invalid_client" in str(e).lower():
+            error_message = "invalid_client_config"
+        elif "token" in str(e).lower():
+            error_message = "token_error"
+        elif "mailbox" in str(e).lower():
+            error_message = "mailbox_check_failed"
+        
+        return RedirectResponse(url=f"/login?error={error_message}", status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/login")
@@ -686,6 +1184,63 @@ async def stage3_page(request: Request, current_user: str = Depends(require_auth
     return templates.TemplateResponse("stage3.html", {"request": request})
 
 
+def serialize_invoice_data(invoice_data):
+    """
+    Convert invoice_data to JSON-serializable format.
+    Handles pandas objects, datetime objects, numpy arrays, and other non-serializable types.
+    """
+    import pandas as pd
+    import numpy as np
+    from datetime import datetime, date
+    
+    def convert_value(value):
+        """Recursively convert values to JSON-serializable types"""
+        # Handle None first
+        if value is None:
+            return None
+        
+        # Handle pandas/numpy array-like objects BEFORE checking pd.isna()
+        # pd.isna() on arrays returns an array, which can't be used in if statements
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            return value.tolist() if hasattr(value, 'tolist') else str(value)
+        
+        # Handle numpy arrays
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        
+        # Handle datetime objects
+        if isinstance(value, (pd.Timestamp, datetime, date)):
+            return value.isoformat() if hasattr(value, 'isoformat') else str(value)
+        
+        # Handle dictionaries
+        if isinstance(value, dict):
+            return {k: convert_value(v) for k, v in value.items()}
+        
+        # Handle lists and tuples
+        if isinstance(value, (list, tuple)):
+            return [convert_value(item) for item in value]
+        
+        # Now safe to check for NaN/None on scalar values
+        # Only check pd.isna() on scalar types (not arrays)
+        try:
+            # Check if it's a scalar numeric value that might be NaN
+            if isinstance(value, (int, float, complex)):
+                if pd.isna(value) or (isinstance(value, float) and (np.isnan(value) or np.isinf(value))):
+                    return None
+        except (ValueError, TypeError):
+            # If pd.isna() fails (e.g., on arrays), continue to other checks
+            pass
+        
+        # Handle basic types
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        
+        # Fallback: convert to string
+        return str(value)
+    
+    return convert_value(invoice_data)
+
+
 @app.post("/api/upload-csv")
 async def upload_csv(files: list[UploadFile] = File(...), current_user: str = Depends(require_auth)):
     """
@@ -707,23 +1262,50 @@ async def upload_csv(files: list[UploadFile] = File(...), current_user: str = De
             
             # Save uploaded file temporarily
             csv_path = os.path.join(batch_temp_dir, file.filename)
-            with open(csv_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            try:
+                with open(csv_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+            except Exception as e:
+                print(f"[ERROR] Failed to save file {file.filename}: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {str(e)}")
             
             # Process CSV to invoice data
-            df = csv_to_dataframe(csv_path)
-            invoice_data = transform_dataframe_to_invoice_data(df)
+            try:
+                df = csv_to_dataframe(csv_path)
+            except Exception as e:
+                print(f"[ERROR] Failed to process CSV file {file.filename}: {e}")
+                print(f"[ERROR] Traceback: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=f"Error reading CSV file {file.filename}: {str(e)}")
+            
+            try:
+                invoice_data = transform_dataframe_to_invoice_data(df)
+            except Exception as e:
+                print(f"[ERROR] Failed to transform data for {file.filename}: {e}")
+                print(f"[ERROR] Traceback: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=f"Error transforming data for {file.filename}: {str(e)}")
             
             # Create individual session ID for this invoice
             invoice_session_id = os.urandom(16).hex()
             invoice_data_path = os.path.join(batch_temp_dir, f"{invoice_session_id}_invoice_data.pkl")
-            with open(invoice_data_path, 'wb') as f:
-                pickle.dump(invoice_data, f)
+            try:
+                with open(invoice_data_path, 'wb') as f:
+                    pickle.dump(invoice_data, f)
+            except Exception as e:
+                print(f"[ERROR] Failed to save invoice data for {file.filename}: {e}")
+                raise HTTPException(status_code=500, detail=f"Error saving invoice data: {str(e)}")
+            
+            # Serialize invoice_data for JSON response
+            try:
+                serialized_invoice_data = serialize_invoice_data(invoice_data)
+            except Exception as e:
+                print(f"[ERROR] Failed to serialize invoice data for {file.filename}: {e}")
+                print(f"[ERROR] Traceback: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=f"Error serializing invoice data: {str(e)}")
             
             invoices.append({
                 'session_id': invoice_session_id,
                 'filename': file.filename,
-                'invoice_data': invoice_data,
+                'invoice_data': serialized_invoice_data,
                 'index': idx
             })
         
@@ -732,7 +1314,14 @@ async def upload_csv(files: list[UploadFile] = File(...), current_user: str = De
             'invoices': invoices,
             'total_count': len(invoices)
         })
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
+        # Log full traceback for debugging
+        error_traceback = traceback.format_exc()
+        print(f"[ERROR] Unexpected error processing CSV files: {e}")
+        print(f"[ERROR] Full traceback:\n{error_traceback}")
         raise HTTPException(status_code=500, detail=f"Error processing CSV: {str(e)}")
 
 

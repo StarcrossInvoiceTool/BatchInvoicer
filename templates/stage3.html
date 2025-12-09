@@ -134,7 +134,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                                <input type="number" step="0.01" id="net" name="net" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                                <input type="number" step="0.01" id="net" name="net" class="w-full border border-gray-300 rounded-lg px-4 py-2" oninput="calculateSubtotalAndVAT()">
                             </div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
@@ -144,7 +144,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                                <input type="number" step="0.01" id="discount" name="discount" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                                <input type="number" step="0.01" id="discount" name="discount" class="w-full border border-gray-300 rounded-lg px-4 py-2" oninput="calculateSubtotalAndVAT()">
                             </div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
@@ -154,17 +154,21 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                                <input type="number" step="0.01" id="subtotal" name="subtotal" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                                <input type="number" step="0.01" id="subtotal" name="subtotal" class="w-full border border-gray-300 rounded-lg px-4 py-2" readonly>
                             </div>
                         </div>
-                        <div class="grid md:grid-cols-2 gap-4">
+                        <div class="grid md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
-                                <input type="text" id="vat-label" name="vat_label" value="VAT 20%" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                                <input type="text" id="vat-label" name="vat_label" value="VAT" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Percentage (%)</label>
+                                <input type="number" step="0.01" id="vat-percentage" name="vat_percentage" value="20" class="w-full border border-gray-300 rounded-lg px-4 py-2" oninput="calculateVAT()">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                                <input type="number" step="0.01" id="vat-amount" name="vat_amount" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                                <input type="number" step="0.01" id="vat-amount" name="vat_amount" class="w-full border border-gray-300 rounded-lg px-4 py-2" readonly>
                             </div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
@@ -199,6 +203,50 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Sort Code</label>
                             <input type="text" id="bank-sort-code" name="bank_sort_code" value="30-99-21" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice Style Selection -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Style</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <input 
+                                type="radio" 
+                                id="style1-radio" 
+                                name="invoice-style" 
+                                value="style1"
+                                checked
+                                class="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                onchange="toggleStyleOptions()"
+                            >
+                            <label for="style1-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
+                                Style 1: Detailed Line Items (Show all individual items from CSV)
+                            </label>
+                        </div>
+                        <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <input 
+                                type="radio" 
+                                id="style2-radio" 
+                                name="invoice-style" 
+                                value="style2"
+                                class="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                onchange="toggleStyleOptions()"
+                            >
+                            <label for="style2-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
+                                Style 2: Simplified (Single line item with total)
+                            </label>
+                        </div>
+                        <div id="style2-options" class="hidden ml-9 p-4 bg-white border border-blue-200 rounded-lg">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Item Name (for Style 2)</label>
+                            <textarea 
+                                id="item-name-input" 
+                                rows="3"
+                                class="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                placeholder="Leave empty to use client name. Press Enter for new lines."
+                            ></textarea>
+                            <p class="mt-2 text-xs text-gray-500">This will be displayed as the line item description. If left empty, the client name will be used.</p>
                         </div>
                     </div>
                 </div>
@@ -269,50 +317,6 @@
                                 <!-- Invoice items will be populated here -->
                             </tbody>
                         </table>
-                    </div>
-                </div>
-
-                <!-- Invoice Style Selection -->
-                <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Style</h3>
-                    <div class="space-y-4">
-                        <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <input 
-                                type="radio" 
-                                id="style1-radio" 
-                                name="invoice-style" 
-                                value="style1"
-                                checked
-                                class="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                onchange="toggleStyleOptions()"
-                            >
-                            <label for="style1-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
-                                Style 1: Detailed Line Items (Show all individual items from CSV)
-                            </label>
-                        </div>
-                        <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <input 
-                                type="radio" 
-                                id="style2-radio" 
-                                name="invoice-style" 
-                                value="style2"
-                                class="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                onchange="toggleStyleOptions()"
-                            >
-                            <label for="style2-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
-                                Style 2: Simplified (Single line item with total)
-                            </label>
-                        </div>
-                        <div id="style2-options" class="hidden ml-9 p-4 bg-white border border-blue-200 rounded-lg">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Item Name (for Style 2)</label>
-                            <textarea 
-                                id="item-name-input" 
-                                rows="3"
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2"
-                                placeholder="Leave empty to use client name. Press Enter for new lines."
-                            ></textarea>
-                            <p class="mt-2 text-xs text-gray-500">This will be displayed as the line item description. If left empty, the client name will be used.</p>
-                        </div>
                     </div>
                 </div>
 
@@ -466,10 +470,13 @@
             document.getElementById('discount').value = data.financial.discount || '';
             document.getElementById('subtotal-label').value = data.financial.subtotal_label || 'Invoice subtotal';
             document.getElementById('subtotal').value = data.financial.subtotal || '';
-            document.getElementById('vat-label').value = data.financial.vat_label || 'VAT 20%';
+            document.getElementById('vat-label').value = data.financial.vat_label || 'VAT';
+            document.getElementById('vat-percentage').value = data.financial.vat_percentage || '20';
             document.getElementById('vat-amount').value = data.financial.vat_amount || '';
             document.getElementById('total-label').value = data.financial.total_label || 'TOTAL DUE';
             document.getElementById('total').value = data.financial.total || '';
+            // Calculate subtotal, VAT, and total after populating form
+            calculateSubtotalAndVAT();
             // Bank details are static - always use these values
             document.getElementById('bank-name').value = 'Lloyds Bank Plc';
             document.getElementById('bank-account-name').value = 'Starcross Trading Limited';
@@ -514,6 +521,53 @@
                 totalInput.value = total.toFixed(2);
             }
         }
+        
+        function calculateSubtotalAndVAT() {
+            // Calculate subtotal = net - discount
+            const net = parseFloat(document.getElementById('net').value) || 0;
+            const discount = parseFloat(document.getElementById('discount').value) || 0;
+            const subtotal = net - discount;
+            
+            // Update subtotal field
+            const subtotalField = document.getElementById('subtotal');
+            if (subtotalField) {
+                subtotalField.value = subtotal.toFixed(2);
+            }
+            
+            // Calculate VAT
+            calculateVAT();
+        }
+        
+        function calculateVAT() {
+            // Get subtotal (calculate if needed)
+            const subtotalField = document.getElementById('subtotal');
+            const subtotal = parseFloat(subtotalField ? subtotalField.value : 0) || 0;
+            
+            // Get VAT percentage
+            const vatPercentage = parseFloat(document.getElementById('vat-percentage').value) || 0;
+            
+            // Calculate VAT = subtotal × (percentage / 100)
+            const vatAmount = subtotal * (vatPercentage / 100);
+            
+            // Update VAT amount field
+            const vatAmountField = document.getElementById('vat-amount');
+            if (vatAmountField) {
+                vatAmountField.value = vatAmount.toFixed(2);
+            }
+            
+            // Calculate total = subtotal + VAT
+            const total = subtotal + vatAmount;
+            
+            // Update total field
+            const totalField = document.getElementById('total');
+            if (totalField) {
+                totalField.value = total.toFixed(2);
+            }
+        }
+        
+        // Make functions globally accessible
+        window.calculateSubtotalAndVAT = calculateSubtotalAndVAT;
+        window.calculateVAT = calculateVAT;
         
         function populateInvoiceItemsTable(items) {
             // Filter out items where both date and our_ref are 'nan' or empty
@@ -1020,12 +1074,12 @@
                 })
                 .filter(item => item !== null); // Remove null items (unselected)
             
-            // Calculate sum of all line item totals for Style 1 and Style 2
+            // Calculate total based on invoice style
             const selectedStyle = document.querySelector('input[name="invoice-style"]:checked').value;
             let calculatedTotal = document.getElementById('total').value;
             
-            if (selectedStyle === 'style1' || selectedStyle === 'style2') {
-                // Sum all non-zero totals from selected line items
+            if (selectedStyle === 'style1') {
+                // Style 1: Sum all non-zero totals from selected line items
                 let sum = 0;
                 updatedItems.forEach(item => {
                     const itemTotal = parseFloat(item.total) || 0;
@@ -1034,6 +1088,12 @@
                     }
                 });
                 calculatedTotal = sum.toFixed(2);
+            } else if (selectedStyle === 'style2') {
+                // Style 2: Use the total from financial section (subtotal + VAT)
+                // This is already calculated by calculateVAT() function
+                // If no line items or sum is 0, use the manually entered total
+                const totalField = document.getElementById('total');
+                calculatedTotal = totalField ? totalField.value : '0.00';
             }
             
             return {
@@ -1062,6 +1122,7 @@
                     subtotal_label: document.getElementById('subtotal-label').value,
                     vat_amount: document.getElementById('vat-amount').value,
                     vat_label: document.getElementById('vat-label').value,
+                    vat_percentage: document.getElementById('vat-percentage').value,
                     total: calculatedTotal,
                     total_label: document.getElementById('total-label').value
                 },

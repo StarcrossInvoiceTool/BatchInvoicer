@@ -43,6 +43,7 @@ invoice html/
 # Test data files (Excel, CSV)
 *.xlsx
 *.xls
+*.md
 # Note: CSV files in temp/ are already covered by temp/ above
 
 # Sensitive data
