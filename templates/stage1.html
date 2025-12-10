@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stage 1: XLSX to CSV - Batch Invoicer</title>
+    <title>Data Preparation - Batch Invoicer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -18,33 +18,164 @@
     <div class="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full">
         <div class="mb-6">
             <a href="/" class="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">← Back to Home</a>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Stage 1: XLSX to CSV</h1>
-            <p class="text-gray-600">Upload an Excel file and convert each sheet to CSV files</p>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Data Preparation</h1>
+            <p class="text-gray-600">Choose a conversion option below</p>
         </div>
 
-        <div id="upload-section" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
-            <form id="upload-form" enctype="multipart/form-data">
-                <div class="mb-4">
-                    <label for="xlsx_file" class="block text-sm font-medium text-gray-700 mb-2">
-                        Select Excel File (.xlsx)
-                    </label>
-                    <input 
-                        type="file" 
-                        id="xlsx_file" 
-                        name="file"
-                        accept=".xlsx,.xls"
-                        required
-                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        <!-- Tab Navigation -->
+        <div class="flex border-b border-gray-200 mb-6">
+            <button 
+                id="tab-xlsx" 
+                class="flex-1 py-3 px-4 text-center font-semibold text-gray-700 border-b-2 border-blue-600 bg-blue-50 transition duration-200"
+                onclick="switchTab('xlsx')"
+            >
+                XLSX to CSV
+            </button>
+            <button 
+                id="tab-csv" 
+                class="flex-1 py-3 px-4 text-center font-semibold text-gray-500 hover:text-gray-700 transition duration-200"
+                onclick="switchTab('csv')"
+            >
+                CSV to CSV
+            </button>
+            <button 
+                id="tab-merge" 
+                class="flex-1 py-3 px-4 text-center font-semibold text-gray-500 hover:text-gray-700 transition duration-200"
+                onclick="switchTab('merge')"
+            >
+                Merge CSVs
+            </button>
+        </div>
+
+        <!-- XLSX to CSV Section -->
+        <div id="section-xlsx" class="tab-section">
+            <div class="mb-4">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">XLSX to CSV</h2>
+                <p class="text-gray-600 text-sm mb-4">Upload an Excel file and convert each sheet to separate CSV files</p>
+            </div>
+            <div id="upload-section-xlsx" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                <form id="upload-form-xlsx" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="xlsx_file" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select Excel File (.xlsx)
+                        </label>
+                        <input 
+                            type="file" 
+                            id="xlsx_file" 
+                            name="file"
+                            accept=".xlsx,.xls"
+                            required
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        >
+                    </div>
+                    <button 
+                        type="submit"
+                        id="submit-btn-xlsx"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
+                        Convert to CSV
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- CSV to CSV Section -->
+        <div id="section-csv" class="tab-section hidden">
+            <div class="mb-4">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">CSV to CSV</h2>
+                <p class="text-gray-600 text-sm mb-4">Upload a CSV file and split it into multiple CSV files based on BudgetCodeText column</p>
+            </div>
+            <div id="upload-section-csv" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                <form id="upload-form-csv" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="csv_file" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select CSV File (.csv)
+                        </label>
+                        <input 
+                            type="file" 
+                            id="csv_file" 
+                            name="file"
+                            accept=".csv"
+                            required
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                        >
+                    </div>
+                    <button 
+                        type="submit"
+                        id="submit-btn-csv"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Split CSV by Budget Code
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Merge CSVs Section -->
+        <div id="section-merge" class="tab-section hidden">
+            <div class="mb-4">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">Merge CSVs</h2>
+                <p class="text-gray-600 text-sm mb-4">Upload multiple CSV files or select from previous division to merge them into one large CSV file</p>
+            </div>
+            
+            <!-- Previous Division Files Section -->
+            <div id="previous-division-section" class="hidden mb-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <h3 class="text-sm font-semibold text-gray-800 mb-2">Files from Previous Division</h3>
+                    <p class="text-xs text-gray-600 mb-3">Select which files from your previous CSV division you want to merge:</p>
+                    <div id="division-files-list" class="space-y-2 max-h-60 overflow-y-auto">
+                        <!-- Files will be populated here -->
+                    </div>
+                    <button 
+                        id="use-division-files-btn"
+                        class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+                    >
+                        Merge Selected Files
+                    </button>
                 </div>
-                <button 
-                    type="submit"
-                    id="submit-btn"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Convert to CSV
-                </button>
-            </form>
+                <div class="text-center mb-4">
+                    <span class="text-sm text-gray-500">OR</span>
+                </div>
+            </div>
+            
+            <div id="upload-section-merge" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                <form id="upload-form-merge" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="merge_csv_files" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select CSV Files (.csv) - You can select multiple files
+                        </label>
+                        <input 
+                            type="file" 
+                            id="merge_csv_files" 
+                            name="files"
+                            accept=".csv"
+                            multiple
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                        >
+                        <p class="mt-2 text-xs text-gray-500">Hold Ctrl (or Cmd on Mac) to select multiple files</p>
+                    </div>
+                    <div class="mb-4">
+                        <label for="merged_filename" class="block text-sm font-medium text-gray-700 mb-2">
+                            Output File Name (optional)
+                        </label>
+                        <input 
+                            type="text" 
+                            id="merged_filename" 
+                            name="merged_filename"
+                            placeholder="merged_data.csv"
+                            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm"
+                        >
+                        <p class="mt-1 text-xs text-gray-500">Leave empty to use default name. Don't include .csv extension.</p>
+                    </div>
+                    <button 
+                        type="submit"
+                        id="submit-btn-merge"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Merge CSV Files
+                    </button>
+                </form>
+            </div>
         </div>
 
         <div id="loading" class="hidden text-center py-4">
@@ -57,15 +188,284 @@
         </div>
 
         <div id="success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <p class="text-green-800 text-sm mb-2">Conversion successful! Your ZIP file is ready.</p>
-            <a id="download-link" href="#" download class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200">
-                Download ZIP File
-            </a>
+            <p class="text-green-800 text-sm mb-2" id="success-message">Conversion successful! <span id="file-count"></span></p>
+            
+            <!-- File Selection Section (for CSV division and merge) -->
+            <div id="file-selection-section" class="hidden mt-4 mb-4">
+                <h3 class="text-sm font-semibold text-gray-800 mb-2">Select files to bring to Invoice Creation:</h3>
+                <div id="file-selection-list" class="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded p-3 bg-white mb-3">
+                    <!-- Files will be populated here -->
+                </div>
+                <button id="continue-with-selected-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                    Continue to Invoice Creation with Selected Files
+                </button>
+            </div>
+            
+            <div class="flex gap-3 mt-3">
+                <a id="download-link" href="#" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                    Download ZIP File
+                </a>
+                <button id="continue-to-invoices-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                    Continue to Invoice Creation (All Files)
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+        function getCurrentTab() {
+            // Determine which tab is currently active
+            if (!document.getElementById('section-xlsx').classList.contains('hidden')) {
+                return 'xlsx';
+            } else if (!document.getElementById('section-csv').classList.contains('hidden')) {
+                return 'csv';
+            } else if (!document.getElementById('section-merge').classList.contains('hidden')) {
+                return 'merge';
+            }
+            return 'xlsx'; // default
+        }
+        
+        function switchTab(tab) {
+            // Hide all sections
+            document.querySelectorAll('.tab-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Remove active styling from all tabs
+            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                btn.classList.remove('border-b-2', 'border-blue-600', 'bg-blue-50', 'text-gray-700');
+                btn.classList.add('text-gray-500');
+            });
+            
+            // Show selected section
+            document.getElementById(`section-${tab}`).classList.remove('hidden');
+            
+            // Add active styling to selected tab
+            const activeTab = document.getElementById(`tab-${tab}`);
+            activeTab.classList.add('border-b-2', 'border-blue-600', 'bg-blue-50', 'text-gray-700');
+            activeTab.classList.remove('text-gray-500');
+            
+            // Hide error and success messages when switching tabs
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            
+            // If switching to merge tab and we have previous division files, show them
+            if (tab === 'merge' && lastConversionSessionId && lastConversionFiles.length > 0) {
+                populateDivisionFilesList();
+            }
+        }
+        
+        function populateDivisionFilesList() {
+            const filesList = document.getElementById('division-files-list');
+            filesList.innerHTML = '';
+            
+            lastConversionFiles.forEach((filename, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'flex items-center gap-2 p-2 bg-white border border-gray-200 rounded';
+                fileItem.innerHTML = `
+                    <input 
+                        type="checkbox" 
+                        class="division-file-checkbox" 
+                        data-filename="${filename}"
+                        id="file-${index}"
+                        checked
+                    >
+                    <label for="file-${index}" class="flex-1 text-sm text-gray-700 cursor-pointer">
+                        ${filename}
+                    </label>
+                `;
+                filesList.appendChild(fileItem);
+            });
+            
+            document.getElementById('previous-division-section').classList.remove('hidden');
+        }
+
+        // Handle merge from division files
+        document.getElementById('use-division-files-btn').addEventListener('click', async () => {
+            const selectedCheckboxes = document.querySelectorAll('.division-file-checkbox:checked');
+            
+            if (selectedCheckboxes.length === 0) {
+                showError('Please select at least one file to merge');
+                return;
+            }
+            
+            const selectedFiles = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-filename'));
+            const filenameInput = document.getElementById('merged_filename');
+            
+            // Show loading
+            document.getElementById('upload-section-merge').classList.add('hidden');
+            document.getElementById('previous-division-section').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            
+            try {
+                const formData = new FormData();
+                formData.append('session_id', lastConversionSessionId);
+                formData.append('files', JSON.stringify(selectedFiles));
+                if (filenameInput.value.trim()) {
+                    formData.append('filename', filenameInput.value.trim());
+                }
+                
+                const response = await fetch('/api/merge-csvs-from-session', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Merge failed');
+                }
+                
+                const data = await response.json();
+                const sessionId = data.session_id;
+                const mergedFilename = data.filename;
+                
+                // Get all available files from the original division session (if exists) plus the merged file
+                let allAvailableFiles = [mergedFilename];
+                if (lastConversionSessionId && lastConversionFiles.length > 0) {
+                    // Include all original division files plus the merged file
+                    allAvailableFiles = [...lastConversionFiles, mergedFilename];
+                }
+                
+                // Update success message
+                document.getElementById('file-count').textContent = `1 merged file (${selectedFiles.length} files combined)`;
+                
+                // Set up download link
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = `Download ${mergedFilename}`;
+                
+                // Set up file selection for merge (include merged file + original division files)
+                setupFileSelection(sessionId, allAvailableFiles, 'merge', lastConversionSessionId);
+                
+                // Set up continue button (all files)
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    // Store current page state before navigating
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: lastConversionSessionId,
+                        files: lastConversionFiles,
+                        conversionType: 'merge',
+                        conversionSessionId: sessionId,
+                        mergedFilename: mergedFilename,
+                        showSuccess: true
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Show success
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('success').classList.remove('hidden');
+                document.getElementById('upload-section-merge').classList.remove('hidden');
+                document.getElementById('previous-division-section').classList.remove('hidden');
+                
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('upload-section-merge').classList.remove('hidden');
+                document.getElementById('previous-division-section').classList.remove('hidden');
+                showError(error.message);
+            }
+        });
+
+        // Merge CSVs form handler (for file upload)
+        document.getElementById('upload-form-merge').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('merge_csv_files');
+            const filenameInput = document.getElementById('merged_filename');
+            
+            // Check if files are selected
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showError('Please select at least one CSV file to upload, or use files from previous division above');
+                return;
+            }
+            
+            // Append all selected files
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('files', fileInput.files[i]);
+            }
+            
+            // Append filename if provided
+            if (filenameInput.value.trim()) {
+                formData.append('filename', filenameInput.value.trim());
+            }
+            
+            // Show loading, hide other sections
+            document.getElementById('upload-section-merge').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/merge-csvs', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Merge failed');
+                }
+                
+                const data = await response.json();
+                const sessionId = data.session_id;
+                const mergedFilename = data.filename;
+                
+                // Update success message
+                document.getElementById('file-count').textContent = `1 merged file (${fileInput.files.length} files combined)`;
+                
+                // Get all available files (for merge from upload, we only have the merged file)
+                let allAvailableFiles = [mergedFilename];
+                
+                // Set up download link
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = `Download ${mergedFilename}`;
+                
+                // Set up file selection for merge (only merged file available when uploading)
+                setupFileSelection(sessionId, allAvailableFiles, 'merge');
+                
+                // Set up continue button (all files)
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    // Store current page state before navigating
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: lastConversionSessionId,
+                        files: lastConversionFiles,
+                        conversionType: 'merge',
+                        conversionSessionId: sessionId,
+                        mergedFilename: mergedFilename,
+                        showSuccess: true
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Show success
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('success').classList.remove('hidden');
+                document.getElementById('upload-section-merge').classList.remove('hidden');
+                
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('upload-section-merge').classList.remove('hidden');
+                showError(error.message);
+            }
+        });
+
+        // XLSX to CSV form handler
+        document.getElementById('upload-form-xlsx').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData();
@@ -80,7 +480,7 @@
             formData.append('file', file);
             
             // Show loading, hide other sections
-            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('upload-section-xlsx').classList.add('hidden');
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('error').classList.add('hidden');
             document.getElementById('success').classList.add('hidden');
@@ -96,34 +496,358 @@
                     throw new Error(error.detail || 'Conversion failed');
                 }
                 
-                // Get the blob and create download link
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = file.name.replace(/\.(xlsx|xls)$/i, '_csvs.zip');
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
+                const data = await response.json();
+                const sessionId = data.session_id;
+                const fileCount = data.file_count;
+                
+                // Update success message
+                document.getElementById('file-count').textContent = `${fileCount} CSV file(s) created.`;
+                
+                // Set up download link
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = 'Download ZIP File';
+                
+                // Set up continue button
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    // Store current page state before navigating
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: null,
+                        files: [],
+                        conversionType: 'xlsx',
+                        conversionSessionId: sessionId,
+                        fileCount: fileCount,
+                        showSuccess: true
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
                 
                 // Show success
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('success').classList.remove('hidden');
-                document.getElementById('upload-section').classList.remove('hidden');
+                document.getElementById('upload-section-xlsx').classList.remove('hidden');
                 
             } catch (error) {
                 document.getElementById('loading').classList.add('hidden');
-                document.getElementById('upload-section').classList.remove('hidden');
+                document.getElementById('upload-section-xlsx').classList.remove('hidden');
                 showError(error.message);
             }
         });
+
+        // CSV to CSV form handler
+        document.getElementById('upload-form-csv').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('csv_file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('Please select a file');
+                return;
+            }
+            
+            formData.append('file', file);
+            
+            // Show loading, hide other sections
+            document.getElementById('upload-section-csv').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/convert-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Conversion failed');
+                }
+                
+                const data = await response.json();
+                const sessionId = data.session_id;
+                const fileCount = data.file_count;
+                const files = data.files || [];
+                
+                // Store session info for merge functionality
+                lastConversionSessionId = sessionId;
+                lastConversionFiles = files;
+                
+                // Update success message
+                document.getElementById('file-count').textContent = `${fileCount} CSV file(s) created.`;
+                
+                // Set up download link
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = 'Download ZIP File';
+                
+                // Set up file selection for CSV division
+                setupFileSelection(sessionId, files, 'csv-division');
+                
+                // Set up continue button (all files)
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    // Store current page state before navigating
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: sessionId,
+                        files: files,
+                        conversionType: 'csv-division',
+                        conversionSessionId: sessionId,
+                        fileCount: fileCount,
+                        showSuccess: true
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Show success
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('success').classList.remove('hidden');
+                document.getElementById('upload-section-csv').classList.remove('hidden');
+                
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('upload-section-csv').classList.remove('hidden');
+                showError(error.message);
+            }
+        });
+        
+        // Global variables to track conversion session
+        let lastConversionSessionId = null;
+        let lastConversionFiles = [];
+        
+        function setupFileSelection(sessionId, files, sourceType, originalSessionId = null) {
+            // Only show file selection for CSV division and merge
+            if (sourceType !== 'csv-division' && sourceType !== 'merge') {
+                return;
+            }
+            
+            const fileSelectionSection = document.getElementById('file-selection-section');
+            const fileSelectionList = document.getElementById('file-selection-list');
+            fileSelectionList.innerHTML = '';
+            
+            // Create checkboxes for each file
+            files.forEach((filename, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'flex items-center gap-2 p-2 hover:bg-gray-50 rounded';
+                
+                // Determine which session ID to use for each file
+                // For merge: if it's the merged file (last in list), use merge session; otherwise use original division session
+                let fileSessionId = sessionId;
+                if (sourceType === 'merge' && originalSessionId && index < files.length - 1) {
+                    // This is an original division file
+                    fileSessionId = originalSessionId;
+                }
+                
+                fileItem.innerHTML = `
+                    <input 
+                        type="checkbox" 
+                        class="file-selection-checkbox" 
+                        data-filename="${filename}"
+                        data-session-id="${fileSessionId}"
+                        id="select-file-${index}"
+                        checked
+                    >
+                    <label for="select-file-${index}" class="flex-1 text-sm text-gray-700 cursor-pointer">
+                        ${filename}
+                    </label>
+                `;
+                fileSelectionList.appendChild(fileItem);
+            });
+            
+            // Set up continue with selected button
+            const continueWithSelectedBtn = document.getElementById('continue-with-selected-btn');
+            continueWithSelectedBtn.onclick = async () => {
+                const selectedCheckboxes = document.querySelectorAll('.file-selection-checkbox:checked');
+                
+                if (selectedCheckboxes.length === 0) {
+                    showError('Please select at least one file to continue');
+                    return;
+                }
+                
+                // Group files by session ID
+                const filesBySession = {};
+                selectedCheckboxes.forEach(cb => {
+                    const filename = cb.getAttribute('data-filename');
+                    const fileSessionId = cb.getAttribute('data-session-id') || sessionId;
+                    if (!filesBySession[fileSessionId]) {
+                        filesBySession[fileSessionId] = [];
+                    }
+                    filesBySession[fileSessionId].push(filename);
+                });
+                
+                // Build state for restoration - use closure variables (sourceType, sessionId, originalSessionId)
+                const currentTab = getCurrentTab();
+                const successDiv = document.getElementById('success');
+                const fileCountText = document.getElementById('file-count').textContent;
+                const downloadLink = document.getElementById('download-link');
+                
+                let currentState = {
+                    activeTab: currentTab,
+                    sessionId: originalSessionId || null, // For merge, this is the division session ID
+                    files: files, // All available files (not just selected)
+                    showSuccess: !successDiv.classList.contains('hidden'),
+                    conversionType: sourceType,
+                    conversionSessionId: sessionId
+                };
+                
+                // Add type-specific details
+                if (sourceType === 'csv-division') {
+                    const countMatch = fileCountText.match(/(\d+)\s+CSV file/);
+                    if (countMatch) {
+                        currentState.fileCount = parseInt(countMatch[1]);
+                    }
+                } else if (sourceType === 'merge') {
+                    currentState.mergedFilename = downloadLink.textContent.replace('Download ', '');
+                }
+                
+                sessionStorage.setItem('previousPage', JSON.stringify({
+                    url: window.location.href,
+                    state: currentState
+                }));
+                
+                // If all files are from the same session, use that session with file filter
+                const sessionIds = Object.keys(filesBySession);
+                if (sessionIds.length === 1) {
+                    // All files from same session - use existing endpoint with file filter
+                    const singleSessionId = sessionIds[0];
+                    const selectedFiles = filesBySession[singleSessionId];
+                    
+                    // Redirect with session_id and selected files
+                    const filesParam = encodeURIComponent(JSON.stringify(selectedFiles));
+                    window.location.href = `/stage2?session_id=${singleSessionId}&files=${filesParam}`;
+                } else {
+                    // Files from multiple sessions - need to create a combined session
+                    try {
+                        const formData = new FormData();
+                        formData.append('files_data', JSON.stringify(filesBySession));
+                        
+                        const response = await fetch('/api/create-combined-session', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.detail || 'Failed to create combined session');
+                        }
+                        
+                        const data = await response.json();
+                        window.location.href = `/stage2?session_id=${data.session_id}`;
+                    } catch (error) {
+                        showError(`Failed to combine files: ${error.message}`);
+                    }
+                }
+            };
+            
+            fileSelectionSection.classList.remove('hidden');
+        }
         
         function showError(message) {
             const errorDiv = document.getElementById('error');
             errorDiv.querySelector('p').textContent = message;
             errorDiv.classList.remove('hidden');
         }
+        
+        // Restore previous page state if returning from another page
+        (() => {
+            const restoreStateData = sessionStorage.getItem('restoreState');
+            if (restoreStateData) {
+                try {
+                    const state = JSON.parse(restoreStateData);
+                    console.log('Restoring state:', state);
+                    
+                    // Restore session info FIRST (before any UI operations that might use them)
+                    if (state.sessionId) {
+                        lastConversionSessionId = state.sessionId;
+                    }
+                    if (state.files) {
+                        lastConversionFiles = state.files;
+                    }
+                    
+                    // Restore active tab
+                    if (state.activeTab) {
+                        switchTab(state.activeTab);
+                    }
+                    
+                    // Restore UI state if there was a conversion
+                    if (state.showSuccess && state.conversionType) {
+                        if (state.conversionType === 'csv-division') {
+                            // Restore CSV division success state
+                            document.getElementById('file-count').textContent = `${state.fileCount} CSV file(s) created.`;
+                            const downloadLink = document.getElementById('download-link');
+                            downloadLink.href = `/api/download-conversion-zip/${state.conversionSessionId}`;
+                            downloadLink.textContent = 'Download ZIP File';
+                            
+                            // Restore file selection - use the files from state
+                            if (state.files && state.files.length > 0) {
+                                console.log('Restoring CSV division files:', state.files);
+                                setupFileSelection(state.conversionSessionId, state.files, 'csv-division');
+                            }
+                            
+                            // Show success section
+                            document.getElementById('success').classList.remove('hidden');
+                            document.getElementById('upload-section-csv').classList.remove('hidden');
+                            
+                        } else if (state.conversionType === 'merge') {
+                            // Restore merge success state
+                            document.getElementById('file-count').textContent = `1 merged file created.`;
+                            const downloadLink = document.getElementById('download-link');
+                            downloadLink.href = `/api/download-conversion-zip/${state.conversionSessionId}`;
+                            downloadLink.textContent = `Download ${state.mergedFilename || 'merged file'}`;
+                            
+                            // Restore file selection if available
+                            if (state.files && state.files.length > 0) {
+                                console.log('Restoring merge files:', state.files, 'with sessionId:', state.sessionId);
+                                setupFileSelection(state.conversionSessionId, state.files, 'merge', state.sessionId);
+                            }
+                            
+                            // Show success section
+                            document.getElementById('success').classList.remove('hidden');
+                            document.getElementById('upload-section-merge').classList.remove('hidden');
+                            
+                            // Show previous division section if we have division files from a previous session
+                            // The files array contains both the merged file and original division files
+                            // If sessionId exists, it means we had a previous division session
+                            if (state.sessionId && state.files && state.files.length > 1) {
+                                // We have both merged file and original division files
+                                console.log('Populating division files list with:', lastConversionFiles);
+                                populateDivisionFilesList();
+                                document.getElementById('previous-division-section').classList.remove('hidden');
+                            }
+                            
+                        } else if (state.conversionType === 'xlsx') {
+                            // Restore XLSX conversion success state
+                            document.getElementById('file-count').textContent = `${state.fileCount} CSV file(s) created.`;
+                            const downloadLink = document.getElementById('download-link');
+                            downloadLink.href = `/api/download-conversion-zip/${state.conversionSessionId}`;
+                            downloadLink.textContent = 'Download ZIP File';
+                            
+                            // Show success section
+                            document.getElementById('success').classList.remove('hidden');
+                            document.getElementById('upload-section-xlsx').classList.remove('hidden');
+                        }
+                    }
+                    
+                    // Clear restore state after using it
+                    sessionStorage.removeItem('restoreState');
+                } catch (e) {
+                    console.error('Failed to restore state:', e);
+                }
+            }
+        })();
     </script>
 </body>
 </html>

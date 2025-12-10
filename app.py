@@ -23,6 +23,7 @@ except ImportError:
 from xslx_to_csv import xlsx_to_csv
 from csv_cleaner import csv_to_dataframe
 from DataScraper import transform_dataframe_to_invoice_data
+from divider import split_csv_by_budget_code
 from jinja2 import Environment, FileSystemLoader
 from auth import verify_user, create_session_token, verify_session_token, SESSION_COOKIE_NAME
 from authAzure import azure_scheme
@@ -139,6 +140,20 @@ def format_date_word_format(date_value):
     
     return str(date_value)
 
+
+def format_currency(value):
+    """Format number as currency with commas and 2 decimal places (e.g., 1,234.56)"""
+    if not value:
+        return ''
+    
+    try:
+        # Convert to float if it's a string
+        num = float(str(value).replace(',', ''))
+        # Format with commas and 2 decimal places
+        return f"{num:,.2f}"
+    except (ValueError, TypeError):
+        # If conversion fails, return original value
+        return str(value)
 
 def format_date_dd_mm_yyyy(date_value):
     """Format date to dd/mm/yyyy format"""
@@ -269,6 +284,7 @@ def generate_invoice_html(invoice_data_path: str, template_name: str = None, emb
     env = Environment(loader=FileSystemLoader(str(templates_dir)))
     env.filters['format_date'] = format_date_word_format  # Invoice header date in word format
     env.filters['format_date_numeric'] = format_date_dd_mm_yyyy  # Line item dates in numeric format
+    env.filters['format_currency'] = format_currency  # Format numbers with commas and 2 decimal places
     template = env.get_template(template_name)
     
     # Render the template
@@ -1124,20 +1140,22 @@ async def home(request: Request, current_user: str = Depends(require_auth)):
 
 @app.get("/stage1", response_class=HTMLResponse)
 async def stage1_page(request: Request, current_user: str = Depends(require_auth)):
-    """Stage 1: XLSX to CSV conversion page"""
+    """Data Preparation: XLSX to CSV conversion page"""
     return templates.TemplateResponse("stage1.html", {"request": request})
 
 
 @app.post("/api/convert-xlsx")
 async def convert_xlsx(file: UploadFile = File(...), current_user: str = Depends(require_auth)):
     """
-    Stage 1: Convert XLSX file to multiple CSV files and return as ZIP
+    Data Preparation: Convert XLSX file to multiple CSV files and store them for download or invoice creation
     """
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
     
-    # Save uploaded file temporarily
-    temp_dir = tempfile.mkdtemp(dir="temp")
+    # Create a conversion session
+    conversion_session_id = os.urandom(16).hex()
+    temp_dir = tempfile.mkdtemp(dir="temp", prefix=f"convert_{conversion_session_id}_")
+    
     try:
         xlsx_path = os.path.join(temp_dir, file.filename)
         with open(xlsx_path, "wb") as buffer:
@@ -1146,41 +1164,464 @@ async def convert_xlsx(file: UploadFile = File(...), current_user: str = Depends
         # Convert xlsx to CSV
         base_name = Path(file.filename).stem
         xlsx_to_csv(xlsx_path, temp_dir)
+        # xlsx_to_csv creates a subdirectory with the base_name
         output_dir = os.path.join(temp_dir, base_name)
         
-        # Create ZIP file
-        zip_path = os.path.join(temp_dir, f"{base_name}_csvs.zip")
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Get list of CSV files created
+        csv_files = []
+        if os.path.exists(output_dir):
             for root, dirs, files in os.walk(output_dir):
                 for csv_file in files:
                     if csv_file.endswith('.csv'):
                         file_path = os.path.join(root, csv_file)
-                        arcname = os.path.relpath(file_path, temp_dir)
-                        zipf.write(file_path, arcname)
+                        csv_files.append({
+                            'filename': csv_file,
+                            'path': file_path
+                        })
         
-        # Return ZIP file
-        return FileResponse(
-            zip_path,
-            media_type="application/zip",
-            filename=f"{base_name}_csvs.zip",
-            background=None
-        )
+        # Return session info with file list
+        return JSONResponse({
+            'session_id': conversion_session_id,
+            'base_name': base_name,
+            'file_count': len(csv_files),
+            'files': [f['filename'] for f in csv_files]
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
-    finally:
-        # Cleanup will happen after file is sent
-        pass
+
+
+@app.post("/api/convert-csv")
+async def convert_csv(file: UploadFile = File(...), current_user: str = Depends(require_auth)):
+    """
+    Data Preparation: Split CSV file by BudgetCodeText column and store them for download or invoice creation
+    """
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="File must be a CSV file (.csv)")
+    
+    # Create a conversion session
+    conversion_session_id = os.urandom(16).hex()
+    temp_dir = tempfile.mkdtemp(dir="temp", prefix=f"convert_{conversion_session_id}_")
+    
+    try:
+        csv_path = os.path.join(temp_dir, file.filename)
+        with open(csv_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Create output directory for split CSV files
+        output_dir = os.path.join(temp_dir, "split_csvs")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Split CSV by BudgetCodeText
+        split_csv_by_budget_code(csv_path, output_dir)
+        
+        # Get list of CSV files created
+        csv_files = []
+        for root, dirs, files in os.walk(output_dir):
+            for csv_file in files:
+                if csv_file.endswith('.csv'):
+                    file_path = os.path.join(root, csv_file)
+                    csv_files.append({
+                        'filename': csv_file,
+                        'path': file_path
+                    })
+        
+        base_name = Path(file.filename).stem
+        
+        # Return session info with file list
+        return JSONResponse({
+            'session_id': conversion_session_id,
+            'base_name': base_name,
+            'file_count': len(csv_files),
+            'files': [f['filename'] for f in csv_files]
+        })
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 
 @app.get("/stage2", response_class=HTMLResponse)
-async def stage2_page(request: Request, current_user: str = Depends(require_auth)):
-    """Stage 2: CSV to Invoice conversion page"""
-    return templates.TemplateResponse("stage2.html", {"request": request})
+async def stage2_page(request: Request, session_id: Optional[str] = None, current_user: str = Depends(require_auth)):
+    """Invoice Creation: CSV to Invoice conversion page"""
+    return templates.TemplateResponse("stage2.html", {"request": request, "session_id": session_id})
+
+
+@app.get("/api/download-conversion-zip/{session_id}")
+async def download_conversion_zip(session_id: str, current_user: str = Depends(require_auth)):
+    """Download ZIP file from a conversion session"""
+    # Find the conversion session directory
+    conversion_dir = None
+    for root, dirs, files in os.walk("temp"):
+        for dir_name in dirs:
+            if f"convert_{session_id}" in dir_name:
+                conversion_dir = os.path.join(root, dir_name)
+                break
+        if conversion_dir:
+            break
+    
+    if not conversion_dir or not os.path.exists(conversion_dir):
+        raise HTTPException(status_code=404, detail="Conversion session not found")
+    
+    # Find CSV files and create ZIP
+    temp_zip_dir = tempfile.mkdtemp(dir="temp")
+    zip_path = os.path.join(temp_zip_dir, f"conversion_{session_id}.zip")
+    
+    try:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Look for CSV files in subdirectories
+            for root, dirs, files in os.walk(conversion_dir):
+                for csv_file in files:
+                    if csv_file.endswith('.csv'):
+                        file_path = os.path.join(root, csv_file)
+                        # Use just the filename in the ZIP
+                        zipf.write(file_path, csv_file)
+        
+        return FileResponse(
+            zip_path,
+            media_type="application/zip",
+            filename=f"conversion_{session_id}.zip",
+            background=None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating ZIP: {str(e)}")
+
+
+@app.post("/api/merge-csvs")
+async def merge_csvs(files: list[UploadFile] = File(...), filename: Optional[str] = Form(None), current_user: str = Depends(require_auth)):
+    """
+    Data Preparation: Merge multiple CSV files into one CSV file
+    """
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="At least one CSV file is required")
+    
+    # Validate all files are CSV
+    for file in files:
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail=f"File {file.filename} must be a CSV file")
+    
+    # Create a conversion session
+    conversion_session_id = os.urandom(16).hex()
+    temp_dir = tempfile.mkdtemp(dir="temp", prefix=f"convert_{conversion_session_id}_")
+    
+    try:
+        # Read all CSV files and merge them
+        dataframes = []
+        for file in files:
+            # Save file temporarily
+            file_path = os.path.join(temp_dir, file.filename)
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            # Read CSV into dataframe
+            try:
+                df = pd.read_csv(file_path)
+                dataframes.append(df)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Error reading {file.filename}: {str(e)}")
+        
+        if not dataframes:
+            raise HTTPException(status_code=400, detail="No valid CSV data found")
+        
+        # Merge all dataframes (concatenate rows)
+        merged_df = pd.concat(dataframes, ignore_index=True)
+        
+        # Determine output filename
+        if filename:
+            # Remove .csv extension if user included it
+            output_filename = filename.replace('.csv', '') + '.csv'
+        else:
+            output_filename = f"merged_{conversion_session_id[:8]}.csv"
+        
+        # Save merged CSV
+        output_dir = os.path.join(temp_dir, "merged")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+        merged_df.to_csv(output_path, index=False, encoding='utf-8')
+        
+        # Return session info
+        return JSONResponse({
+            'session_id': conversion_session_id,
+            'base_name': output_filename.replace('.csv', ''),
+            'filename': output_filename,
+            'file_count': 1,
+            'files': [output_filename],
+            'total_rows': len(merged_df)
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error merging files: {str(e)}")
+
+
+@app.post("/api/merge-csvs-from-session")
+async def merge_csvs_from_session(session_id: str = Form(...), files: str = Form(...), filename: Optional[str] = Form(None), current_user: str = Depends(require_auth)):
+    """
+    Data Preparation: Merge CSV files from a previous conversion session
+    """
+    import json
+    
+    try:
+        file_list = json.loads(files)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid file list format")
+    
+    if not file_list or len(file_list) == 0:
+        raise HTTPException(status_code=400, detail="At least one file must be selected")
+    
+    # Find the conversion session directory
+    conversion_dir = None
+    for root, dirs, files_walk in os.walk("temp"):
+        for dir_name in dirs:
+            if f"convert_{session_id}" in dir_name:
+                conversion_dir = os.path.join(root, dir_name)
+                break
+        if conversion_dir:
+            break
+    
+    if not conversion_dir or not os.path.exists(conversion_dir):
+        raise HTTPException(status_code=404, detail="Conversion session not found")
+    
+    # Find the CSV files to merge
+    csv_files_to_merge = []
+    for root, dirs, files_walk in os.walk(conversion_dir):
+        for csv_file in files_walk:
+            if csv_file.endswith('.csv') and csv_file in file_list:
+                file_path = os.path.join(root, csv_file)
+                csv_files_to_merge.append(file_path)
+    
+    if not csv_files_to_merge:
+        raise HTTPException(status_code=404, detail="No matching CSV files found in conversion session")
+    
+    # Create a new conversion session for the merged file
+    new_conversion_session_id = os.urandom(16).hex()
+    temp_dir = tempfile.mkdtemp(dir="temp", prefix=f"convert_{new_conversion_session_id}_")
+    
+    try:
+        # Read all CSV files and merge them
+        dataframes = []
+        for file_path in csv_files_to_merge:
+            try:
+                df = pd.read_csv(file_path)
+                dataframes.append(df)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Error reading {os.path.basename(file_path)}: {str(e)}")
+        
+        if not dataframes:
+            raise HTTPException(status_code=400, detail="No valid CSV data found")
+        
+        # Merge all dataframes (concatenate rows)
+        merged_df = pd.concat(dataframes, ignore_index=True)
+        
+        # Determine output filename
+        if filename:
+            # Remove .csv extension if user included it
+            output_filename = filename.replace('.csv', '') + '.csv'
+        else:
+            output_filename = f"merged_{new_conversion_session_id[:8]}.csv"
+        
+        # Save merged CSV
+        output_dir = os.path.join(temp_dir, "merged")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+        merged_df.to_csv(output_path, index=False, encoding='utf-8')
+        
+        # Return session info
+        return JSONResponse({
+            'session_id': new_conversion_session_id,
+            'base_name': output_filename.replace('.csv', ''),
+            'filename': output_filename,
+            'file_count': 1,
+            'files': [output_filename],
+            'total_rows': len(merged_df)
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error merging files: {str(e)}")
+
+
+@app.get("/api/get-conversion-files/{session_id}")
+async def get_conversion_files(
+    session_id: str, 
+    files: Optional[str] = None,
+    current_user: str = Depends(require_auth)
+):
+    """Get CSV files from a conversion session for invoice creation.
+    
+    Args:
+        session_id: The conversion session ID
+        files: Optional JSON-encoded list of filenames to filter. If provided, only these files will be included.
+    """
+    # Find the conversion session directory
+    conversion_dir = None
+    temp_path = Path("temp")
+    
+    if not temp_path.exists():
+        raise HTTPException(status_code=404, detail="Temp directory not found")
+    
+    # Search for directory with the session ID
+    for root, dirs, files in os.walk("temp"):
+        for dir_name in dirs:
+            if f"convert_{session_id}" in dir_name:
+                conversion_dir = os.path.join(root, dir_name)
+                break
+        if conversion_dir:
+            break
+    
+    if not conversion_dir or not os.path.exists(conversion_dir):
+        raise HTTPException(status_code=404, detail=f"Conversion session not found. Session ID: {session_id}")
+    
+    # Find all CSV files (they might be in subdirectories like "split_csvs", "merged", or a base_name folder)
+    # Exclude the original uploaded file - only include files in subdirectories
+    csv_files = []
+    original_file_path = None
+    
+    # First, identify the original file (it's in the root of conversion_dir)
+    for item in os.listdir(conversion_dir):
+        item_path = os.path.join(conversion_dir, item)
+        if os.path.isfile(item_path) and item.endswith('.csv'):
+            original_file_path = item_path
+            break
+    
+    # Now collect CSV files, excluding the original
+    for root, dirs, files_walk in os.walk(conversion_dir):
+        for csv_file in files_walk:
+            if csv_file.endswith('.csv'):
+                file_path = os.path.join(root, csv_file)
+                # Skip the original file (only include files in subdirectories)
+                if file_path != original_file_path:
+                    csv_files.append(file_path)
+    
+    # Filter files if a specific list was provided
+    selected_filenames = None
+    if files:
+        try:
+            selected_filenames = set(json.loads(files))
+            # Filter to only include selected files
+            csv_files = [f for f in csv_files if os.path.basename(f) in selected_filenames]
+            print(f"[DEBUG] Filtered to {len(csv_files)} selected files from {len(selected_filenames)} requested")
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"[WARNING] Failed to parse files parameter: {e}")
+    
+    print(f"[DEBUG] Found {len(csv_files)} CSV files in conversion session {session_id}")
+    if csv_files:
+        print(f"[DEBUG] Files: {[os.path.basename(f) for f in csv_files]}")
+    
+    if not csv_files:
+        # Provide more detailed error message
+        raise HTTPException(
+            status_code=404, 
+            detail=f"No CSV files found in conversion session. Searched in: {conversion_dir}"
+        )
+    
+    # Process CSV files similar to upload-csv endpoint
+    batch_session_id = os.urandom(16).hex()
+    batch_temp_dir = tempfile.mkdtemp(dir="temp", prefix=f"batch_{batch_session_id}_")
+    
+    invoices = []
+    
+    for idx, csv_path in enumerate(csv_files):
+        try:
+            print(f"[DEBUG] Processing CSV file {idx + 1}/{len(csv_files)}: {os.path.basename(csv_path)}")
+            # Read and clean CSV
+            df = csv_to_dataframe(csv_path)
+            
+            # Transform to invoice data
+            invoice_data = transform_dataframe_to_invoice_data(df)
+            
+            # Create individual session ID for this invoice
+            invoice_session_id = os.urandom(16).hex()
+            invoice_data_path = os.path.join(batch_temp_dir, f"{invoice_session_id}_invoice_data.pkl")
+            
+            with open(invoice_data_path, 'wb') as f:
+                pickle.dump(invoice_data, f)
+            
+            # Serialize invoice_data for JSON response
+            serialized_invoice_data = serialize_invoice_data(invoice_data)
+            
+            csv_filename = os.path.basename(csv_path)
+            invoices.append({
+                'session_id': invoice_session_id,
+                'filename': csv_filename,
+                'invoice_data': serialized_invoice_data,
+                'index': idx
+            })
+            print(f"[DEBUG] Successfully processed {csv_filename}")
+        except Exception as e:
+            print(f"[ERROR] Failed to process {csv_path}: {e}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            continue
+    
+    if not invoices:
+        raise HTTPException(status_code=500, detail="Failed to process any CSV files")
+    
+    return JSONResponse({
+        'batch_session_id': batch_session_id,
+        'invoices': invoices,
+        'total_count': len(invoices)
+    })
+
+
+@app.post("/api/create-combined-session")
+async def create_combined_session(files_data: str = Form(...), current_user: str = Depends(require_auth)):
+    """
+    Create a combined session from files across multiple conversion sessions.
+    This is used when users select files from different sessions (e.g., merged file + original division files).
+    """
+    try:
+        files_by_session = json.loads(files_data)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid files_data format")
+    
+    if not files_by_session or len(files_by_session) == 0:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    # Create a new combined conversion session
+    combined_session_id = os.urandom(16).hex()
+    combined_temp_dir = tempfile.mkdtemp(dir="temp", prefix=f"convert_{combined_session_id}_")
+    combined_output_dir = os.path.join(combined_temp_dir, "combined")
+    os.makedirs(combined_output_dir, exist_ok=True)
+    
+    # Copy selected files from each session into the combined session
+    for session_id, filenames in files_by_session.items():
+        # Find the conversion session directory
+        conversion_dir = None
+        for root, dirs, files_walk in os.walk("temp"):
+            for dir_name in dirs:
+                if f"convert_{session_id}" in dir_name:
+                    conversion_dir = os.path.join(root, dir_name)
+                    break
+            if conversion_dir:
+                break
+        
+        if not conversion_dir or not os.path.exists(conversion_dir):
+            print(f"[WARNING] Session {session_id} not found, skipping")
+            continue
+        
+        # Find and copy the selected files
+        for root, dirs, files_walk in os.walk(conversion_dir):
+            for csv_file in files_walk:
+                if csv_file.endswith('.csv') and csv_file in filenames:
+                    source_path = os.path.join(root, csv_file)
+                    dest_path = os.path.join(combined_output_dir, csv_file)
+                    shutil.copy2(source_path, dest_path)
+                    print(f"[DEBUG] Copied {csv_file} from session {session_id} to combined session")
+    
+    # Verify files were copied
+    copied_files = [f for f in os.listdir(combined_output_dir) if f.endswith('.csv')]
+    if not copied_files:
+        raise HTTPException(status_code=500, detail="Failed to copy files to combined session")
+    
+    return JSONResponse({
+        'session_id': combined_session_id,
+        'file_count': len(copied_files),
+        'files': copied_files
+    })
 
 
 @app.get("/stage3", response_class=HTMLResponse)
 async def stage3_page(request: Request, current_user: str = Depends(require_auth)):
-    """Stage 3: Edit saved HTML invoice page"""
+    """Invoice Editing: Edit saved HTML invoice page"""
     return templates.TemplateResponse("stage3.html", {"request": request})
 
 
@@ -1244,7 +1685,7 @@ def serialize_invoice_data(invoice_data):
 @app.post("/api/upload-csv")
 async def upload_csv(files: list[UploadFile] = File(...), current_user: str = Depends(require_auth)):
     """
-    Stage 2: Upload one or more CSV files, process them, and return invoice data for editing
+    Invoice Creation: Upload one or more CSV files, process them, and return invoice data for editing
     """
     if not files:
         raise HTTPException(status_code=400, detail="At least one CSV file is required")
@@ -1328,7 +1769,7 @@ async def upload_csv(files: list[UploadFile] = File(...), current_user: str = De
 @app.post("/api/upload-html")
 async def upload_html(file: UploadFile = File(...), current_user: str = Depends(require_auth)):
     """
-    Stage 3: Upload HTML invoice file, parse it, and return invoice data for editing
+    Invoice Editing: Upload HTML invoice file, parse it, and return invoice data for editing
     """
     if not file.filename.endswith('.html'):
         raise HTTPException(status_code=400, detail="File must be an HTML file (.html)")
@@ -1366,7 +1807,7 @@ async def update_invoice(
     current_user: str = Depends(require_auth)
 ):
     """
-    Stage 2: Update invoice data and generate HTML
+    Invoice Creation: Update invoice data and generate HTML
     """
     try:
         invoice_data = json.loads(invoice_data_json)
@@ -1523,6 +1964,7 @@ async def invoice_preview(session_id: str, current_user: str = Depends(require_a
     env = Environment(loader=FileSystemLoader(str(templates_dir)))
     env.filters['format_date'] = format_date_word_format  # Invoice header date in word format
     env.filters['format_date_numeric'] = format_date_dd_mm_yyyy  # Line item dates in numeric format
+    env.filters['format_currency'] = format_currency  # Format numbers with commas and 2 decimal places
     template = env.get_template(template_name)
     
     # Render the template (keep static path for preview since FastAPI serves static files)

@@ -457,25 +457,25 @@
             <div class="w-1/2">
                 <div class="flex justify-between items-center mb-1">
                     <span class="text-gray-700">{{ data.financial.net_label }}</span>
-                    <span class="text-gray-800">{% if data.financial.net %}£{{ data.financial.net }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.net %}£{{ data.financial.net | format_currency }}{% endif %}</span>
                 </div>
                 <div class="flex justify-between items-center mb-4" style="margin-top: 0.5rem;">
                     <span class="text-gray-700">{{ data.financial.discount_label }}</span>
-                    <span class="text-gray-800">{% if data.financial.discount %}£{{ data.financial.discount }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.discount %}£{{ data.financial.discount | format_currency }}{% endif %}</span>
                 </div>
 
                 <hr class="border-t-2 border-black my-2">
 
                 <div class="flex justify-between items-center mb-1">
                     <span class="text-gray-700">{{ data.financial.subtotal_label }}</span>
-                    <span class="text-gray-800">{% if data.financial.subtotal %}£{{ data.financial.subtotal }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.subtotal %}£{{ data.financial.subtotal | format_currency }}{% endif %}</span>
                 </div>
 
                 <hr class="border-t-2 border-black my-2">
 
                 <div class="flex justify-between items-center mb-4">
                     <span class="text-gray-700">{{ data.financial.vat_label }}{% if data.financial.vat_percentage %} {{ data.financial.vat_percentage }}%{% endif %}</span>
-                    <span class="text-gray-800">{% if data.financial.vat_amount %}£{{ data.financial.vat_amount }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.vat_amount %}£{{ data.financial.vat_amount | format_currency }}{% endif %}</span>
                 </div>
                 <hr class="border-t-2 border-black my-2">
                 <hr class="border-t-2 border-black my-2">
@@ -483,7 +483,7 @@
                 <div class="py-2">
                     <div class="flex justify-between items-center">
                         <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{{ data.financial.total_label }}</span>
-                        <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{% if data.financial.total %}£{{ data.financial.total }}{% endif %}</span>
+                        <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{% if data.financial.total %}£{{ data.financial.total | format_currency }}{% endif %}</span>
                     </div>
                 </div>
             </div>
@@ -620,13 +620,13 @@
                         <span class="col-start-1 col-span-2">{{ item.status }}</span>
                         <span class="col-start-3 col-span-2">{{ item.directions }}</span>
                         <span class="col-start-5 col-span-2">{{ item.mob }}</span>
-                        <span class="col-start-7 col-span-2">{{ item.wait_pounds }}</span>
+                        <span class="col-start-7 col-span-2">{% if item.wait_pounds %}£{{ item.wait_pounds | format_currency }}{% endif %}</span>
                         <span class="col-start-9 col-span-3">{{ item.wait_notes }}</span>
                         <span class="col-start-12 col-span-2">{% if item.miles and item.miles|lower != 'nan' and item.miles|string|trim != '' %}{{ item.miles }}{% else %}0.0{% endif %}</span>
                         <span class="col-start-14 col-span-2">{% if item.charged and item.charged|string|trim != '' and item.charged|lower != 'nan' %}{{ item.charged }}{% else %}0{% endif %}</span>
-                        <span class="col-start-16 col-span-2">{% if item.miles_pounds %}£{{ item.miles_pounds }}{% endif %}</span>
-                        <span class="col-start-18 col-span-2">{% if item.job_pounds %}£{{ item.job_pounds }}{% endif %}</span>
-                        <span class="col-start-20 col-span-5 font-bold text-gray-800">{% if item.total %}£{{ item.total }}{% endif %}</span>
+                        <span class="col-start-16 col-span-2">{% if item.miles_pounds %}£{{ item.miles_pounds | format_currency }}{% endif %}</span>
+                        <span class="col-start-18 col-span-2">{% if item.job_pounds %}£{{ item.job_pounds | format_currency }}{% endif %}</span>
+                        <span class="col-start-20 col-span-5 font-bold text-gray-800">{% if item.total %}£{{ item.total | format_currency }}{% endif %}</span>
                     </div>
                     <hr class="dotted-line-bottom">
                 </div>

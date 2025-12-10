@@ -416,25 +416,25 @@
             <div class="w-1/2">
                 <div class="flex justify-between items-center mb-1">
                     <span class="text-gray-700">{{ data.financial.net_label }}</span>
-                    <span class="text-gray-800">{% if data.financial.net %}£{{ data.financial.net }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.net %}£{{ data.financial.net | format_currency }}{% endif %}</span>
                 </div>
                 <div class="flex justify-between items-center mb-4" style="margin-top: 0.5rem;">
                     <span class="text-gray-700">{{ data.financial.discount_label }}</span>
-                    <span class="text-gray-800">{% if data.financial.discount %}£{{ data.financial.discount }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.discount %}£{{ data.financial.discount | format_currency }}{% endif %}</span>
                 </div>
 
                 <hr class="border-t-2 border-black my-2">
 
                 <div class="flex justify-between items-center mb-1">
                     <span class="text-gray-700">{{ data.financial.subtotal_label }}</span>
-                    <span class="text-gray-800">{% if data.financial.subtotal %}£{{ data.financial.subtotal }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.subtotal %}£{{ data.financial.subtotal | format_currency }}{% endif %}</span>
                 </div>
 
                 <hr class="border-t-2 border-black my-2">
 
                 <div class="flex justify-between items-center mb-4">
                     <span class="text-gray-700">{{ data.financial.vat_label }}{% if data.financial.vat_percentage %} {{ data.financial.vat_percentage }}%{% endif %}</span>
-                    <span class="text-gray-800">{% if data.financial.vat_amount %}£{{ data.financial.vat_amount }}{% endif %}</span>
+                    <span class="text-gray-800">{% if data.financial.vat_amount %}£{{ data.financial.vat_amount | format_currency }}{% endif %}</span>
                 </div>
                 <hr class="border-t-2 border-black my-2">
                 <hr class="border-t-2 border-black my-2">
@@ -442,7 +442,7 @@
                 <div class="py-2">
                     <div class="flex justify-between items-center">
                         <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{{ data.financial.total_label }}</span>
-                        <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{% if data.financial.total %}£{{ data.financial.total }}{% endif %}</span>
+                        <span class="text-gray-800 font-bold" style="font-size: 9.5pt;">{% if data.financial.total %}£{{ data.financial.total | format_currency }}{% endif %}</span>
                     </div>
                 </div>
             </div>
@@ -506,7 +506,7 @@
                 <div class="invoice-line-item">
                     <div class="data-grid-simple font-normal">
                         <span style="white-space: pre-line;">{{ data.item_name or data.patient.name }}</span>
-                        <span class="font-bold text-gray-800 text-right">{% if data.financial.total %}£{{ data.financial.total }}{% endif %}</span>
+                        <span class="font-bold text-gray-800 text-right">{% if data.financial.total %}£{{ data.financial.total | format_currency }}{% endif %}</span>
                     </div>
                     <hr class="dotted-line-bottom">
                 </div>
