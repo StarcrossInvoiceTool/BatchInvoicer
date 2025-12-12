@@ -1286,6 +1286,43 @@ async def download_conversion_zip(session_id: str, current_user: str = Depends(r
         raise HTTPException(status_code=500, detail=f"Error creating ZIP: {str(e)}")
 
 
+@app.get("/api/download-conversion-file/{session_id}/{filename:path}")
+async def download_conversion_file(session_id: str, filename: str, current_user: str = Depends(require_auth)):
+    """Download a single CSV file from a conversion session"""
+    # Find the conversion session directory
+    conversion_dir = None
+    for root, dirs, files in os.walk("temp"):
+        for dir_name in dirs:
+            if f"convert_{session_id}" in dir_name:
+                conversion_dir = os.path.join(root, dir_name)
+                break
+        if conversion_dir:
+            break
+    
+    if not conversion_dir or not os.path.exists(conversion_dir):
+        raise HTTPException(status_code=404, detail="Conversion session not found")
+    
+    # Find the specific file
+    file_path = None
+    for root, dirs, files_walk in os.walk(conversion_dir):
+        for csv_file in files_walk:
+            if csv_file == filename and csv_file.endswith('.csv'):
+                file_path = os.path.join(root, csv_file)
+                break
+        if file_path:
+            break
+    
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File {filename} not found in conversion session")
+    
+    return FileResponse(
+        file_path,
+        media_type="text/csv",
+        filename=filename,
+        background=None
+    )
+
+
 @app.post("/api/merge-csvs")
 async def merge_csvs(files: list[UploadFile] = File(...), filename: Optional[str] = Form(None), current_user: str = Depends(require_auth)):
     """

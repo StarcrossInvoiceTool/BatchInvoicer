@@ -245,13 +245,138 @@
             activeTab.classList.add('border-b-2', 'border-blue-600', 'bg-blue-50', 'text-gray-700');
             activeTab.classList.remove('text-gray-500');
             
-            // Hide error and success messages when switching tabs
+            // Hide error messages when switching tabs
             document.getElementById('error').classList.add('hidden');
-            document.getElementById('success').classList.add('hidden');
             
-            // If switching to merge tab and we have previous division files, show them
-            if (tab === 'merge' && lastConversionSessionId && lastConversionFiles.length > 0) {
-                populateDivisionFilesList();
+            // Populate previous files for the current tab (handles merge, csv, and xlsx)
+            populatePreviousFilesForTab(tab);
+            
+            // Restore success state for this tab if it exists
+            restoreTabSuccessState(tab);
+        }
+        
+        // Restore success state for a specific tab
+        function restoreTabSuccessState(tab) {
+            const successState = tabSuccessState[tab];
+            if (!successState) {
+                // No success state for this tab - hide success section
+                document.getElementById('success').classList.add('hidden');
+                return;
+            }
+            
+            // Restore success state based on conversion type
+            const conversionType = successState.conversionType;
+            const sessionId = successState.sessionId;
+            const files = successState.files;
+            const fileCount = successState.fileCount;
+            
+            if (conversionType === 'xlsx') {
+                // Restore XLSX success state
+                document.getElementById('file-count').textContent = `${fileCount} CSV file(s) created.`;
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = 'Download ZIP File';
+                
+                // Restore file selection
+                if (files && files.length > 0) {
+                    setupFileSelection(sessionId, files, 'xlsx');
+                }
+                
+                // Restore continue button
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: sessionId,
+                        files: files,
+                        conversionType: 'xlsx',
+                        conversionSessionId: sessionId,
+                        fileCount: fileCount,
+                        showSuccess: true,
+                        allConversionSessions: allConversionSessions
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Show success section
+                document.getElementById('success').classList.remove('hidden');
+                document.getElementById('upload-section-xlsx').classList.remove('hidden');
+                
+            } else if (conversionType === 'csv-division') {
+                // Restore CSV division success state
+                document.getElementById('file-count').textContent = `${fileCount} CSV file(s) created.`;
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = 'Download ZIP File';
+                
+                // Restore file selection
+                if (files && files.length > 0) {
+                    setupFileSelection(sessionId, files, 'csv-division');
+                }
+                
+                // Restore continue button
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: sessionId,
+                        files: files,
+                        conversionType: 'csv-division',
+                        conversionSessionId: sessionId,
+                        fileCount: fileCount,
+                        showSuccess: true,
+                        allConversionSessions: allConversionSessions
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Show success section
+                document.getElementById('success').classList.remove('hidden');
+                document.getElementById('upload-section-csv').classList.remove('hidden');
+                
+            } else if (conversionType === 'merge') {
+                // Restore merge success state
+                document.getElementById('file-count').textContent = `1 merged file (${successState.sourceCount || 0} files combined)`;
+                const downloadLink = document.getElementById('download-link');
+                downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
+                downloadLink.textContent = `Download ${successState.mergedFilename || 'merged file'}`;
+                
+                // Restore file selection
+                if (files && files.length > 0) {
+                    setupFileSelection(sessionId, files, 'merge', successState.originalSessionId);
+                }
+                
+                // Restore continue button
+                const continueBtn = document.getElementById('continue-to-invoices-btn');
+                continueBtn.onclick = () => {
+                    const currentState = {
+                        activeTab: getCurrentTab(),
+                        sessionId: successState.originalSessionId || null,
+                        files: files,
+                        conversionType: 'merge',
+                        conversionSessionId: sessionId,
+                        mergedFilename: successState.mergedFilename,
+                        showSuccess: true,
+                        allConversionSessions: allConversionSessions
+                    };
+                    sessionStorage.setItem('previousPage', JSON.stringify({
+                        url: window.location.href,
+                        state: currentState
+                    }));
+                    window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Show success section
+                document.getElementById('success').classList.remove('hidden');
+                document.getElementById('upload-section-merge').classList.remove('hidden');
             }
         }
         
@@ -290,7 +415,19 @@
             }
             
             const selectedFiles = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-filename'));
+            const selectedSessionIds = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-session-id'));
             const filenameInput = document.getElementById('merged_filename');
+            
+            // Group files by session ID
+            const filesBySession = {};
+            selectedCheckboxes.forEach(cb => {
+                const filename = cb.getAttribute('data-filename');
+                const fileSessionId = cb.getAttribute('data-session-id');
+                if (!filesBySession[fileSessionId]) {
+                    filesBySession[fileSessionId] = [];
+                }
+                filesBySession[fileSessionId].push(filename);
+            });
             
             // Show loading
             document.getElementById('upload-section-merge').classList.add('hidden');
@@ -300,17 +437,33 @@
             document.getElementById('success').classList.add('hidden');
             
             try {
-                const formData = new FormData();
-                formData.append('session_id', lastConversionSessionId);
-                formData.append('files', JSON.stringify(selectedFiles));
-                if (filenameInput.value.trim()) {
-                    formData.append('filename', filenameInput.value.trim());
-                }
+                // If files are from multiple sessions, we need to use the combined session endpoint
+                const sessionIds = Object.keys(filesBySession);
+                let response;
                 
-                const response = await fetch('/api/merge-csvs-from-session', {
-                    method: 'POST',
-                    body: formData
-                });
+                if (sessionIds.length === 1) {
+                    // All files from same session - use existing endpoint
+                    const formData = new FormData();
+                    formData.append('session_id', sessionIds[0]);
+                    formData.append('files', JSON.stringify(selectedFiles));
+                    if (filenameInput.value.trim()) {
+                        formData.append('filename', filenameInput.value.trim());
+                    }
+                    
+                    response = await fetch('/api/merge-csvs-from-session', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    // Files from multiple sessions - need to create combined session first
+                    // For now, we'll merge them one by one or use the first session
+                    // This is a limitation - we should enhance the backend to handle multi-session merges
+                    showError('Files from multiple sessions cannot be merged directly. Please merge files from the same session.');
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('upload-section-merge').classList.remove('hidden');
+                    document.getElementById('previous-division-section').classList.remove('hidden');
+                    return;
+                }
                 
                 if (!response.ok) {
                     const error = await response.json();
@@ -321,12 +474,21 @@
                 const sessionId = data.session_id;
                 const mergedFilename = data.filename;
                 
-                // Get all available files from the original division session (if exists) plus the merged file
+                // Get all available files from all previous sessions plus the merged file
+                const allPreviousFiles = getAllAvailableFiles();
                 let allAvailableFiles = [mergedFilename];
-                if (lastConversionSessionId && lastConversionFiles.length > 0) {
-                    // Include all original division files plus the merged file
-                    allAvailableFiles = [...lastConversionFiles, mergedFilename];
-                }
+                // Include all files from previous conversions
+                allPreviousFiles.forEach(file => {
+                    if (!allAvailableFiles.includes(file.filename)) {
+                        allAvailableFiles.push(file.filename);
+                    }
+                });
+                
+                // Add this conversion session to the tracker
+                addConversionSession(sessionId, 'merge', [mergedFilename], {
+                    mergedFilename: mergedFilename,
+                    sourceCount: selectedFiles.length
+                });
                 
                 // Update success message
                 document.getElementById('file-count').textContent = `1 merged file (${selectedFiles.length} files combined)`;
@@ -336,8 +498,10 @@
                 downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
                 downloadLink.textContent = `Download ${mergedFilename}`;
                 
-                // Set up file selection for merge (include merged file + original division files)
-                setupFileSelection(sessionId, allAvailableFiles, 'merge', lastConversionSessionId);
+                // Set up file selection for merge (include merged file + all previous files)
+                // For the original session ID, we'll use the first selected file's session
+                const firstSelectedSessionId = selectedCheckboxes[0]?.getAttribute('data-session-id') || null;
+                setupFileSelection(sessionId, allAvailableFiles, 'merge', firstSelectedSessionId);
                 
                 // Set up continue button (all files)
                 const continueBtn = document.getElementById('continue-to-invoices-btn');
@@ -350,13 +514,24 @@
                         conversionType: 'merge',
                         conversionSessionId: sessionId,
                         mergedFilename: mergedFilename,
-                        showSuccess: true
+                        showSuccess: true,
+                        allConversionSessions: allConversionSessions
                     };
                     sessionStorage.setItem('previousPage', JSON.stringify({
                         url: window.location.href,
                         state: currentState
                     }));
                     window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Store success state for this tab
+                tabSuccessState['merge'] = {
+                    conversionType: 'merge',
+                    sessionId: sessionId,
+                    files: allAvailableFiles,
+                    mergedFilename: mergedFilename,
+                    sourceCount: selectedFiles.length,
+                    originalSessionId: firstSelectedSessionId
                 };
                 
                 // Show success
@@ -418,18 +593,31 @@
                 const sessionId = data.session_id;
                 const mergedFilename = data.filename;
                 
+                // Get all available files from all previous sessions plus the merged file
+                const allPreviousFiles = getAllAvailableFiles();
+                let allAvailableFiles = [mergedFilename];
+                // Include all files from previous conversions
+                allPreviousFiles.forEach(file => {
+                    if (!allAvailableFiles.includes(file.filename)) {
+                        allAvailableFiles.push(file.filename);
+                    }
+                });
+                
+                // Add this conversion session to the tracker
+                addConversionSession(sessionId, 'merge', [mergedFilename], {
+                    mergedFilename: mergedFilename,
+                    sourceCount: fileInput.files.length
+                });
+                
                 // Update success message
                 document.getElementById('file-count').textContent = `1 merged file (${fileInput.files.length} files combined)`;
-                
-                // Get all available files (for merge from upload, we only have the merged file)
-                let allAvailableFiles = [mergedFilename];
                 
                 // Set up download link
                 const downloadLink = document.getElementById('download-link');
                 downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
                 downloadLink.textContent = `Download ${mergedFilename}`;
                 
-                // Set up file selection for merge (only merged file available when uploading)
+                // Set up file selection for merge (include merged file + all previous files)
                 setupFileSelection(sessionId, allAvailableFiles, 'merge');
                 
                 // Set up continue button (all files)
@@ -450,6 +638,16 @@
                         state: currentState
                     }));
                     window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Store success state for this tab
+                tabSuccessState['merge'] = {
+                    conversionType: 'merge',
+                    sessionId: sessionId,
+                    files: allAvailableFiles,
+                    mergedFilename: mergedFilename,
+                    sourceCount: fileInput.files.length,
+                    originalSessionId: null
                 };
                 
                 // Show success
@@ -499,33 +697,55 @@
                 const data = await response.json();
                 const sessionId = data.session_id;
                 const fileCount = data.file_count;
+                const files = data.files || [];
+                
+                // Add this conversion session to the tracker
+                addConversionSession(sessionId, 'xlsx', files, {
+                    fileCount: fileCount
+                });
                 
                 // Update success message
                 document.getElementById('file-count').textContent = `${fileCount} CSV file(s) created.`;
+                
+                // Store session info for merge functionality
+                lastConversionSessionId = sessionId;
+                lastConversionFiles = files;
                 
                 // Set up download link
                 const downloadLink = document.getElementById('download-link');
                 downloadLink.href = `/api/download-conversion-zip/${sessionId}`;
                 downloadLink.textContent = 'Download ZIP File';
                 
-                // Set up continue button
+                // Set up file selection for XLSX conversion (similar to CSV division)
+                setupFileSelection(sessionId, files, 'xlsx');
+                
+                // Set up continue button (all files)
                 const continueBtn = document.getElementById('continue-to-invoices-btn');
                 continueBtn.onclick = () => {
                     // Store current page state before navigating
                     const currentState = {
                         activeTab: getCurrentTab(),
-                        sessionId: null,
-                        files: [],
+                        sessionId: sessionId,
+                        files: files,
                         conversionType: 'xlsx',
                         conversionSessionId: sessionId,
                         fileCount: fileCount,
-                        showSuccess: true
+                        showSuccess: true,
+                        allConversionSessions: allConversionSessions
                     };
                     sessionStorage.setItem('previousPage', JSON.stringify({
                         url: window.location.href,
                         state: currentState
                     }));
                     window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Store success state for this tab
+                tabSuccessState['xlsx'] = {
+                    conversionType: 'xlsx',
+                    sessionId: sessionId,
+                    files: files,
+                    fileCount: fileCount
                 };
                 
                 // Show success
@@ -581,6 +801,11 @@
                 lastConversionSessionId = sessionId;
                 lastConversionFiles = files;
                 
+                // Add this conversion session to the tracker
+                addConversionSession(sessionId, 'csv-division', files, {
+                    fileCount: fileCount
+                });
+                
                 // Update success message
                 document.getElementById('file-count').textContent = `${fileCount} CSV file(s) created.`;
                 
@@ -603,13 +828,22 @@
                         conversionType: 'csv-division',
                         conversionSessionId: sessionId,
                         fileCount: fileCount,
-                        showSuccess: true
+                        showSuccess: true,
+                        allConversionSessions: allConversionSessions
                     };
                     sessionStorage.setItem('previousPage', JSON.stringify({
                         url: window.location.href,
                         state: currentState
                     }));
                     window.location.href = `/stage2?session_id=${sessionId}`;
+                };
+                
+                // Store success state for this tab
+                tabSuccessState['csv'] = {
+                    conversionType: 'csv-division',
+                    sessionId: sessionId,
+                    files: files,
+                    fileCount: fileCount
                 };
                 
                 // Show success
@@ -624,13 +858,246 @@
             }
         });
         
-        // Global variables to track conversion session
+        // Global variables to track conversion sessions
         let lastConversionSessionId = null;
         let lastConversionFiles = [];
         
+        // Track all conversion sessions across all tabs (only for current page session)
+        // Structure: { sessionId: { type: 'xlsx'|'csv-division'|'merge', files: [], sessionId: string, ... } }
+        let allConversionSessions = {};
+        
+        // Track success state per tab so we can restore it when switching back
+        // Structure: { 'xlsx': { sessionId, files, fileCount, ... }, 'csv': {...}, 'merge': {...} }
+        let tabSuccessState = {};
+        
+        // On page load, start fresh - don't load old sessions from sessionStorage
+        // Sessions will only be restored if we're coming back from another page (via restoreState)
+        (() => {
+            const restoreStateData = sessionStorage.getItem('restoreState');
+            if (!restoreStateData) {
+                // Fresh page load - start with empty sessions
+                // Clear any old sessionStorage data for conversion sessions and reset variables
+                sessionStorage.removeItem('allConversionSessions');
+                allConversionSessions = {};
+                lastConversionSessionId = null;
+                lastConversionFiles = [];
+                console.log('Fresh page load - starting with empty conversion sessions');
+            } else {
+                // Restore state exists - sessions will be loaded in the restore logic below
+                console.log('Restore state detected - will load sessions in restore logic');
+            }
+        })();
+        
+        // Save conversion sessions to sessionStorage
+        function saveConversionSessions() {
+            sessionStorage.setItem('allConversionSessions', JSON.stringify(allConversionSessions));
+        }
+        
+        // Add a conversion session to the tracker
+        function addConversionSession(sessionId, type, files, metadata = {}) {
+            allConversionSessions[sessionId] = {
+                type: type,
+                files: files,
+                sessionId: sessionId,
+                ...metadata
+            };
+            saveConversionSessions();
+            console.log('Added conversion session:', sessionId, type, files);
+        }
+        
+        // Get all available files from all conversion sessions
+        function getAllAvailableFiles() {
+            const allFiles = [];
+            for (const sessionId in allConversionSessions) {
+                const session = allConversionSessions[sessionId];
+                session.files.forEach(filename => {
+                    allFiles.push({
+                        filename: filename,
+                        sessionId: sessionId,
+                        type: session.type
+                    });
+                });
+            }
+            return allFiles;
+        }
+        
+        // Populate files from all previous conversions for a specific tab
+        // Only shows files from the current page session (not from sessionStorage)
+        async function populatePreviousFilesForTab(tab) {
+            const allFiles = getAllAvailableFiles();
+            
+            if (tab === 'merge') {
+                // For merge tab, show all files from all previous conversions in current session
+                const filesList = document.getElementById('division-files-list');
+                filesList.innerHTML = '';
+                
+                if (allFiles.length === 0) {
+                    document.getElementById('previous-division-section').classList.add('hidden');
+                    return;
+                }
+                
+                // Group files by session
+                const filesBySession = {};
+                allFiles.forEach(file => {
+                    if (!filesBySession[file.sessionId]) {
+                        filesBySession[file.sessionId] = [];
+                    }
+                    filesBySession[file.sessionId].push(file);
+                });
+                
+                // Create sections for each session type
+                for (const sessionId in filesBySession) {
+                    const session = allConversionSessions[sessionId];
+                    const sessionFiles = filesBySession[sessionId];
+                    
+                    // Create a section header for this session
+                    const sessionHeader = document.createElement('div');
+                    sessionHeader.className = 'mb-2 mt-3 first:mt-0';
+                    const typeLabel = session.type === 'xlsx' ? 'XLSX Conversion' : 
+                                     session.type === 'csv-division' ? 'CSV Division' : 
+                                     session.type === 'merge' ? 'Merged File' : 'Previous Conversion';
+                    sessionHeader.innerHTML = `<p class="text-xs font-semibold text-gray-600">${typeLabel}</p>`;
+                    filesList.appendChild(sessionHeader);
+                    
+                    // Add files from this session
+                    sessionFiles.forEach((file, index) => {
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'flex items-center gap-2 p-2 bg-white border border-gray-200 rounded';
+                        fileItem.innerHTML = `
+                            <input 
+                                type="checkbox" 
+                                class="division-file-checkbox" 
+                                data-filename="${file.filename}"
+                                data-session-id="${file.sessionId}"
+                                id="file-${sessionId}-${index}"
+                                checked
+                            >
+                            <label for="file-${sessionId}-${index}" class="flex-1 text-sm text-gray-700 cursor-pointer">
+                                ${file.filename}
+                            </label>
+                        `;
+                        filesList.appendChild(fileItem);
+                    });
+                }
+                
+                document.getElementById('previous-division-section').classList.remove('hidden');
+                
+            } else if (tab === 'csv') {
+                // For CSV to CSV tab, show a section to select files from previous conversions
+                // Only show files from the current page session
+                const uploadSection = document.getElementById('upload-section-csv');
+                
+                // Check if we already have a "Previous Files" section, if not create it
+                let previousFilesSection = document.getElementById('previous-files-section-csv');
+                if (!previousFilesSection) {
+                    previousFilesSection = document.createElement('div');
+                    previousFilesSection.id = 'previous-files-section-csv';
+                    previousFilesSection.className = 'mb-6';
+                    uploadSection.parentNode.insertBefore(previousFilesSection, uploadSection);
+                }
+                
+                // Only show files from current session (not from previous page loads)
+                if (allFiles.length === 0) {
+                    previousFilesSection.classList.add('hidden');
+                } else {
+                    previousFilesSection.classList.remove('hidden');
+                    previousFilesSection.innerHTML = `
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <h3 class="text-sm font-semibold text-gray-800 mb-2">Files from Previous Conversions</h3>
+                            <p class="text-xs text-gray-600 mb-3">Select a file from previous conversions to split:</p>
+                            <div id="previous-files-list-csv" class="space-y-2 max-h-60 overflow-y-auto mb-3">
+                                <!-- Files will be populated here -->
+                            </div>
+                            <div class="text-center mb-2">
+                                <span class="text-sm text-gray-500">OR</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const filesList = document.getElementById('previous-files-list-csv');
+                    filesList.innerHTML = '';
+                    
+                    // Group files by session
+                    const filesBySession = {};
+                    allFiles.forEach(file => {
+                        if (!filesBySession[file.sessionId]) {
+                            filesBySession[file.sessionId] = [];
+                        }
+                        filesBySession[file.sessionId].push(file);
+                    });
+                    
+                    // Create radio buttons for each file (only one can be selected)
+                    for (const sessionId in filesBySession) {
+                        const session = allConversionSessions[sessionId];
+                        const sessionFiles = filesBySession[sessionId];
+                        
+                        sessionFiles.forEach((file, index) => {
+                            const fileItem = document.createElement('div');
+                            fileItem.className = 'flex items-center gap-2 p-2 bg-white border border-gray-200 rounded';
+                            fileItem.innerHTML = `
+                                <input 
+                                    type="radio" 
+                                    name="previous-file-csv" 
+                                    class="previous-file-radio-csv" 
+                                    data-filename="${file.filename}"
+                                    data-session-id="${file.sessionId}"
+                                    id="prev-file-${sessionId}-${index}"
+                                >
+                                <label for="prev-file-${sessionId}-${index}" class="flex-1 text-sm text-gray-700 cursor-pointer">
+                                    ${file.filename}
+                                </label>
+                            `;
+                            filesList.appendChild(fileItem);
+                        });
+                    }
+                    
+                    // Add button to use selected file
+                    const useFileBtn = document.createElement('button');
+                    useFileBtn.id = 'use-previous-file-csv-btn';
+                    useFileBtn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200';
+                    useFileBtn.textContent = 'Use Selected File';
+                    useFileBtn.onclick = async () => {
+                        const selectedRadio = document.querySelector('input[name="previous-file-csv"]:checked');
+                        if (!selectedRadio) {
+                            showError('Please select a file to use');
+                            return;
+                        }
+                        
+                        const filename = selectedRadio.getAttribute('data-filename');
+                        const fileSessionId = selectedRadio.getAttribute('data-session-id');
+                        
+                        // Download the file from the session and use it for CSV division
+                        try {
+                            // Download the file content
+                            const fileResponse = await fetch(`/api/download-conversion-file/${fileSessionId}/${encodeURIComponent(filename)}`);
+                            if (!fileResponse.ok) {
+                                throw new Error('Failed to download file from session');
+                            }
+                            
+                            // Create a File object from the blob
+                            const blob = await fileResponse.blob();
+                            const file = new File([blob], filename, { type: 'text/csv' });
+                            
+                            // Set the file input
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+                            document.getElementById('csv_file').files = dataTransfer.files;
+                            
+                            // Trigger the form submission
+                            document.getElementById('upload-form-csv').dispatchEvent(new Event('submit', { cancelable: true }));
+                            
+                        } catch (error) {
+                            showError(error.message || 'Failed to load file from previous conversion');
+                        }
+                    };
+                    previousFilesSection.querySelector('.bg-blue-50').appendChild(useFileBtn);
+                }
+            }
+        }
+        
         function setupFileSelection(sessionId, files, sourceType, originalSessionId = null) {
-            // Only show file selection for CSV division and merge
-            if (sourceType !== 'csv-division' && sourceType !== 'merge') {
+            // Show file selection for CSV division, merge, and XLSX conversions
+            if (sourceType !== 'csv-division' && sourceType !== 'merge' && sourceType !== 'xlsx') {
                 return;
             }
             
@@ -700,7 +1167,8 @@
                     files: files, // All available files (not just selected)
                     showSuccess: !successDiv.classList.contains('hidden'),
                     conversionType: sourceType,
-                    conversionSessionId: sessionId
+                    conversionSessionId: sessionId,
+                    allConversionSessions: allConversionSessions
                 };
                 
                 // Add type-specific details
@@ -777,7 +1245,13 @@
                         lastConversionFiles = state.files;
                     }
                     
-                    // Restore active tab
+                    // Restore all conversion sessions if they exist in state
+                    if (state.allConversionSessions) {
+                        allConversionSessions = state.allConversionSessions;
+                        saveConversionSessions();
+                    }
+                    
+                    // Restore active tab (this will also call populatePreviousFilesForTab)
                     if (state.activeTab) {
                         switchTab(state.activeTab);
                     }
@@ -785,6 +1259,14 @@
                     // Restore UI state if there was a conversion
                     if (state.showSuccess && state.conversionType) {
                         if (state.conversionType === 'csv-division') {
+                            // Store success state for this tab so it persists across tab switches
+                            tabSuccessState['csv'] = {
+                                conversionType: 'csv-division',
+                                sessionId: state.conversionSessionId,
+                                files: state.files,
+                                fileCount: state.fileCount
+                            };
+                            
                             // Restore CSV division success state
                             document.getElementById('file-count').textContent = `${state.fileCount} CSV file(s) created.`;
                             const downloadLink = document.getElementById('download-link');
@@ -797,11 +1279,41 @@
                                 setupFileSelection(state.conversionSessionId, state.files, 'csv-division');
                             }
                             
+                            // Restore continue button
+                            const continueBtn = document.getElementById('continue-to-invoices-btn');
+                            continueBtn.onclick = () => {
+                                const currentState = {
+                                    activeTab: getCurrentTab(),
+                                    sessionId: state.sessionId,
+                                    files: state.files,
+                                    conversionType: 'csv-division',
+                                    conversionSessionId: state.conversionSessionId,
+                                    fileCount: state.fileCount,
+                                    showSuccess: true,
+                                    allConversionSessions: allConversionSessions
+                                };
+                                sessionStorage.setItem('previousPage', JSON.stringify({
+                                    url: window.location.href,
+                                    state: currentState
+                                }));
+                                window.location.href = `/stage2?session_id=${state.conversionSessionId}`;
+                            };
+                            
                             // Show success section
                             document.getElementById('success').classList.remove('hidden');
                             document.getElementById('upload-section-csv').classList.remove('hidden');
                             
                         } else if (state.conversionType === 'merge') {
+                            // Store success state for this tab so it persists across tab switches
+                            tabSuccessState['merge'] = {
+                                conversionType: 'merge',
+                                sessionId: state.conversionSessionId,
+                                files: state.files,
+                                mergedFilename: state.mergedFilename,
+                                sourceCount: state.files ? state.files.length : 0,
+                                originalSessionId: state.sessionId
+                            };
+                            
                             // Restore merge success state
                             document.getElementById('file-count').textContent = `1 merged file created.`;
                             const downloadLink = document.getElementById('download-link');
@@ -813,6 +1325,26 @@
                                 console.log('Restoring merge files:', state.files, 'with sessionId:', state.sessionId);
                                 setupFileSelection(state.conversionSessionId, state.files, 'merge', state.sessionId);
                             }
+                            
+                            // Restore continue button
+                            const continueBtn = document.getElementById('continue-to-invoices-btn');
+                            continueBtn.onclick = () => {
+                                const currentState = {
+                                    activeTab: getCurrentTab(),
+                                    sessionId: state.sessionId || null,
+                                    files: state.files,
+                                    conversionType: 'merge',
+                                    conversionSessionId: state.conversionSessionId,
+                                    mergedFilename: state.mergedFilename,
+                                    showSuccess: true,
+                                    allConversionSessions: allConversionSessions
+                                };
+                                sessionStorage.setItem('previousPage', JSON.stringify({
+                                    url: window.location.href,
+                                    state: currentState
+                                }));
+                                window.location.href = `/stage2?session_id=${state.conversionSessionId}`;
+                            };
                             
                             // Show success section
                             document.getElementById('success').classList.remove('hidden');
@@ -829,11 +1361,45 @@
                             }
                             
                         } else if (state.conversionType === 'xlsx') {
+                            // Store success state for this tab so it persists across tab switches
+                            tabSuccessState['xlsx'] = {
+                                conversionType: 'xlsx',
+                                sessionId: state.conversionSessionId,
+                                files: state.files,
+                                fileCount: state.fileCount
+                            };
+                            
                             // Restore XLSX conversion success state
                             document.getElementById('file-count').textContent = `${state.fileCount} CSV file(s) created.`;
                             const downloadLink = document.getElementById('download-link');
                             downloadLink.href = `/api/download-conversion-zip/${state.conversionSessionId}`;
                             downloadLink.textContent = 'Download ZIP File';
+                            
+                            // Restore file selection - use the files from state
+                            if (state.files && state.files.length > 0) {
+                                console.log('Restoring XLSX conversion files:', state.files);
+                                setupFileSelection(state.conversionSessionId, state.files, 'xlsx');
+                            }
+                            
+                            // Restore continue button
+                            const continueBtn = document.getElementById('continue-to-invoices-btn');
+                            continueBtn.onclick = () => {
+                                const currentState = {
+                                    activeTab: getCurrentTab(),
+                                    sessionId: state.sessionId,
+                                    files: state.files,
+                                    conversionType: 'xlsx',
+                                    conversionSessionId: state.conversionSessionId,
+                                    fileCount: state.fileCount,
+                                    showSuccess: true,
+                                    allConversionSessions: allConversionSessions
+                                };
+                                sessionStorage.setItem('previousPage', JSON.stringify({
+                                    url: window.location.href,
+                                    state: currentState
+                                }));
+                                window.location.href = `/stage2?session_id=${state.conversionSessionId}`;
+                            };
                             
                             // Show success section
                             document.getElementById('success').classList.remove('hidden');

@@ -1182,7 +1182,14 @@
                 });
             } catch (e) {
                 console.error('Failed to parse previous page data:', e);
+                // If parsing fails, default to home
+                backToPreviousBtn.href = '/';
+                backToPreviousBtn.classList.remove('hidden');
             }
+        } else {
+            // No previous page data - default to home page
+            backToPreviousBtn.href = '/';
+            backToPreviousBtn.classList.remove('hidden');
         }
     </script>
 </body>

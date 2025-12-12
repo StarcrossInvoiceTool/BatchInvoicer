@@ -36,7 +36,7 @@
         </div>
 
         <div class="grid md:grid-cols-3 gap-6 mt-8">
-            <a href="/stage1" class="block">
+            <a href="/stage1" class="block" onclick="sessionStorage.setItem('previousPage', JSON.stringify({url: window.location.href, state: null}));">
                 <div class="bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-6 transition duration-200 cursor-pointer">
                     <div class="text-center">
                         <div class="text-4xl mb-4">📊</div>
@@ -50,7 +50,7 @@
                 </div>
             </a>
 
-            <a href="/stage2" class="block">
+            <a href="/stage2" class="block" onclick="sessionStorage.setItem('previousPage', JSON.stringify({url: window.location.href, state: null}));">
                 <div class="bg-green-50 hover:bg-green-100 border-2 border-green-200 rounded-lg p-6 transition duration-200 cursor-pointer">
                     <div class="text-center">
                         <div class="text-4xl mb-4">📄</div>
@@ -63,7 +63,7 @@
                 </div>
             </a>
 
-            <a href="/stage3" class="block">
+            <a href="/stage3" class="block" onclick="sessionStorage.setItem('previousPage', JSON.stringify({url: window.location.href, state: null}));">
                 <div class="bg-purple-50 hover:bg-purple-100 border-2 border-purple-200 rounded-lg p-6 transition duration-200 cursor-pointer">
                     <div class="text-center">
                         <div class="text-4xl mb-4">💾</div>
