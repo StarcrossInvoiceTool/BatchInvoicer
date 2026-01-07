@@ -914,6 +914,17 @@ async def login_azure(request: Request):
     # Also store in cache as backup (works even if session cookie fails)
     _store_oauth_state(state)
     
+    # Determine redirect URI dynamically based on the request host
+    # This allows the app to work both locally and via ngrok
+    host = request.headers.get("host", "")
+    if host and "ngrok" in host.lower():
+        # Using ngrok - construct redirect URI from the request
+        scheme = "https"  # ngrok always uses HTTPS
+        redirect_uri = f"{scheme}://{host}/auth/callback"
+    else:
+        # Using localhost or direct access - use configured redirect URI
+        redirect_uri = AZURE_REDIRECT_URI
+    
     # Build authorization URL
     # Use custom API scopes for general SSO authentication
     scope = "openid profile email api://ab608ebc-7163-416a-ba6d-fb2f885d8914/userImpersonations"
@@ -921,7 +932,7 @@ async def login_azure(request: Request):
     params = {
         "client_id": AZURE_CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": AZURE_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "response_mode": "query",
         "scope": scope,
         "state": state,
@@ -977,6 +988,17 @@ async def azure_callback(request: Request, code: Optional[str] = None, state: Op
         print(f"[WARNING] State verification failed. Received state from Azure: {state[:20]}...")
         return RedirectResponse(url="/login?error=invalid_state", status_code=status.HTTP_302_FOUND)
     
+    # Determine redirect URI dynamically based on the request host
+    # This must match what was used in the authorization request
+    host = request.headers.get("host", "")
+    if host and "ngrok" in host.lower():
+        # Using ngrok - construct redirect URI from the request
+        scheme = "https"  # ngrok always uses HTTPS
+        redirect_uri = f"{scheme}://{host}/auth/callback"
+    else:
+        # Using localhost or direct access - use configured redirect URI
+        redirect_uri = AZURE_REDIRECT_URI
+    
     try:
         # Exchange authorization code for access token
         # Azure AD uses the scopes from the authorization request automatically
@@ -987,7 +1009,7 @@ async def azure_callback(request: Request, code: Optional[str] = None, state: Op
                     "client_id": AZURE_CLIENT_ID,
                     "client_secret": AZURE_CLIENT_SECRET,
                     "code": code,
-                    "redirect_uri": AZURE_REDIRECT_URI,
+                    "redirect_uri": redirect_uri,
                     "grant_type": "authorization_code",
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
