@@ -1,41 +1,49 @@
 """
-Authentication utilities for the Batch Invoicer application
+Authentication module for the Batch Invoicer application.
+
+Handles both local whitelist authentication and Azure AD SSO.
+All sensitive values are loaded from environment variables.
+See ENV_VARS.md for the full list of required variables.
 """
 import json
 import os
 from pathlib import Path
 from typing import Optional
+
 from itsdangerous import URLSafeTimedSerializer
 from passlib.context import CryptContext
+from fastapi_azure_auth import SingleTenantAzureAuthorizationCodeBearer
 
-# Secret key for session signing (in production, use environment variable)
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
+# ---------------------------------------------------------------------------
+# Shared
+# ---------------------------------------------------------------------------
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-in-production")
 SESSION_COOKIE_NAME = "session_token"
+
+# ---------------------------------------------------------------------------
+# Local (whitelist) authentication
+# ---------------------------------------------------------------------------
 WHITELIST_FILE = Path(__file__).parent / "whitelist.json"
 
-# Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Session serializer
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 
 def load_whitelist() -> dict:
     """Load the whitelist from JSON file"""
     if not WHITELIST_FILE.exists():
-        # Create default whitelist if it doesn't exist
         default_whitelist = {
             "users": [
                 {
                     "username": "admin",
-                    "password": "admin123"  # Change this default password
+                    "password": "admin123"
                 }
             ]
         }
         with open(WHITELIST_FILE, 'w') as f:
             json.dump(default_whitelist, f, indent=2)
         return default_whitelist
-    
+
     with open(WHITELIST_FILE, 'r') as f:
         return json.load(f)
 
@@ -43,19 +51,16 @@ def load_whitelist() -> dict:
 def verify_user(username: str, password: str) -> bool:
     """Verify if username and password match whitelist"""
     whitelist = load_whitelist()
-    
+
     for user in whitelist.get("users", []):
         if user.get("username") == username:
-            # Check if password is hashed or plain text
             stored_password = user.get("password") or user.get("password_hash")
-            
+
             if stored_password.startswith("$2b$") or stored_password.startswith("$2a$"):
-                # Password is hashed
                 return pwd_context.verify(password, stored_password)
             else:
-                # Password is plain text (for simple setup)
                 return password == stored_password
-    
+
     return False
 
 
@@ -81,24 +86,48 @@ def hash_password(password: str) -> str:
 def add_user_to_whitelist(username: str, password: str, hash_password_flag: bool = True):
     """Add a new user to the whitelist"""
     whitelist = load_whitelist()
-    
-    # Check if user already exists
+
     for user in whitelist.get("users", []):
         if user.get("username") == username:
             raise ValueError(f"User {username} already exists")
-    
-    # Add new user
-    new_user = {
-        "username": username
-    }
-    
+
+    new_user = {"username": username}
+
     if hash_password_flag:
         new_user["password_hash"] = hash_password(password)
     else:
         new_user["password"] = password
-    
+
     whitelist.setdefault("users", []).append(new_user)
-    
+
     with open(WHITELIST_FILE, 'w') as f:
         json.dump(whitelist, f, indent=2)
 
+# ---------------------------------------------------------------------------
+# Azure AD SSO
+# ---------------------------------------------------------------------------
+AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")
+AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
+AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET", "")
+AZURE_REDIRECT_URI = os.getenv("AZURE_REDIRECT_URI", "")
+REQUIRED_MAILBOX = os.getenv("REQUIRED_MAILBOX", "")
+
+AZURE_API_SCOPE = f"api://{AZURE_CLIENT_ID}/userImpersonations" if AZURE_CLIENT_ID else ""
+
+azure_scheme = SingleTenantAzureAuthorizationCodeBearer(
+    app_client_id=AZURE_CLIENT_ID or "not-configured",
+    tenant_id=AZURE_TENANT_ID or "not-configured",
+    scopes={AZURE_API_SCOPE: 'access as user'} if AZURE_API_SCOPE else {},
+    allow_guest_users=True,
+) if AZURE_CLIENT_ID and AZURE_TENANT_ID else None
+
+AZURE_AUTHORIZATION_ENDPOINT = (
+    f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/authorize"
+    if AZURE_TENANT_ID else ""
+)
+AZURE_TOKEN_ENDPOINT = (
+    f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/token"
+    if AZURE_TENANT_ID else ""
+)
+
+GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0"

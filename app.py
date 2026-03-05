@@ -25,8 +25,10 @@ from csv_cleaner import csv_to_dataframe
 from DataScraper import transform_dataframe_to_invoice_data
 from divider import split_csv_by_budget_code
 from jinja2 import Environment, FileSystemLoader
-from auth import verify_user, create_session_token, verify_session_token, SESSION_COOKIE_NAME
-from authAzure import azure_scheme
+from auth import (
+    verify_user, create_session_token, verify_session_token, SESSION_COOKIE_NAME,
+    azure_scheme,
+)
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime
@@ -74,7 +76,7 @@ async def favicon():
 # Configure with same_site="lax" to ensure cookies work with OAuth redirects
 app.add_middleware(
     SessionMiddleware, 
-    secret_key=os.getenv("SECRET_KEY", "your-secret-key-change-this"),
+    secret_key=os.environ.get("SECRET_KEY", "dev-only-change-in-production"),
     same_site="lax",
     https_only=False  # Set to True in production with HTTPS
 )
@@ -736,11 +738,10 @@ async def check_mailbox_access(access_token: str, mailbox_email: str) -> bool:
     
     Returns True if user has access, False otherwise.
     """
-    from authAzure import GRAPH_API_ENDPOINT
+    from auth import GRAPH_API_ENDPOINT, AZURE_CLIENT_ID
     import httpx
     
     if not mailbox_email:
-        # If no mailbox is configured, allow all users
         return True
     
     try:
@@ -874,7 +875,7 @@ async def check_mailbox_access(access_token: str, mailbox_email: str) -> bool:
             print(f"[INFO]    Exchange Admin Center → Recipients → Mailboxes → {mailbox_email} → Manage mailbox delegation")
             print(f"[INFO] 2. Check Application Access Policies in Exchange Online PowerShell:")
             print(f"[INFO]    Get-ApplicationAccessPolicy")
-            print(f"[INFO] 3. If policies exist, ensure your app (Client ID: ab608ebc-7163-416a-ba6d-fb2f885d8914) is allowed")
+            print(f"[INFO] 3. If policies exist, ensure your app (Client ID: {AZURE_CLIENT_ID}) is allowed")
             print(f"[INFO] 4. Wait 5-10 minutes after granting permissions for propagation")
             print(f"[INFO] ========================================")
             
@@ -895,39 +896,33 @@ async def check_mailbox_access(access_token: str, mailbox_email: str) -> bool:
 @app.get("/login/azure")
 async def login_azure(request: Request):
     """Initiate Azure AD SSO login"""
-    from authAzure import AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_REDIRECT_URI, AZURE_AUTHORIZATION_ENDPOINT
+    from auth import (
+        AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_REDIRECT_URI,
+        AZURE_AUTHORIZATION_ENDPOINT, AZURE_API_SCOPE,
+    )
     import secrets
     
-    # Generate state for CSRF protection
+    if not AZURE_CLIENT_ID or not AZURE_TENANT_ID:
+        return RedirectResponse(url="/login?error=azure_not_configured", status_code=status.HTTP_302_FOUND)
+    
     state = secrets.token_urlsafe(32)
     
-    # Store state in both session and cache (cache as backup)
     try:
-        # Initialize session by accessing it
         _ = request.session
-        # Store the state in session
         request.session["azure_oauth_state"] = state
     except Exception:
-        # If session fails, we'll rely on cache only
         pass
     
-    # Also store in cache as backup (works even if session cookie fails)
     _store_oauth_state(state)
     
-    # Determine redirect URI dynamically based on the request host
-    # This allows the app to work both locally and via ngrok
     host = request.headers.get("host", "")
     if host and "ngrok" in host.lower():
-        # Using ngrok - construct redirect URI from the request
-        scheme = "https"  # ngrok always uses HTTPS
+        scheme = "https"
         redirect_uri = f"{scheme}://{host}/auth/callback"
     else:
-        # Using localhost or direct access - use configured redirect URI
         redirect_uri = AZURE_REDIRECT_URI
     
-    # Build authorization URL
-    # Use custom API scopes for general SSO authentication
-    scope = "openid profile email api://ab608ebc-7163-416a-ba6d-fb2f885d8914/userImpersonations"
+    scope = f"openid profile email {AZURE_API_SCOPE}"
     
     params = {
         "client_id": AZURE_CLIENT_ID,
@@ -939,7 +934,8 @@ async def login_azure(request: Request):
         "prompt": "select_account",  # Force account selection screen
     }
     
-    auth_url = f"{AZURE_AUTHORIZATION_ENDPOINT}?" + "&".join([f"{k}={v}" for k, v in params.items()])
+    from urllib.parse import urlencode
+    auth_url = f"{AZURE_AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
     
     # Create redirect response
     # The SessionMiddleware will save the session when this response is processed
@@ -949,7 +945,7 @@ async def login_azure(request: Request):
 @app.get("/auth/callback")
 async def azure_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
     """Handle Azure AD OAuth callback"""
-    from authAzure import AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_REDIRECT_URI, AZURE_TOKEN_ENDPOINT
+    from auth import AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_REDIRECT_URI, AZURE_TOKEN_ENDPOINT
     import httpx
     
     if error:
@@ -1046,7 +1042,7 @@ async def azure_callback(request: Request, code: Optional[str] = None, state: Op
             # Get user info from ID token
             try:
                 import jwt
-                from authAzure import AZURE_CLIENT_ID, AZURE_TENANT_ID
+                from auth import AZURE_CLIENT_ID, AZURE_TENANT_ID
                 
                 # Decode ID token (without verification for now - in production, verify the signature)
                 # For production, you should verify the token signature using Azure's public keys
