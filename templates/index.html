@@ -5,11 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice Generator - BEARS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#edf7f2',100:'#d1eddf',200:'#a3dbbf',DEFAULT:'#00855a',dark:'#006e4a',darkest:'#013220',medium:'#388e6c' },
+            navy: { DEFAULT:'#0a2240',dark:'#061829' },
+            accent: { DEFAULT:'#4285f4',dark:'#3367c7' },
+          }
+        }
+      }
+    }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, #a3dbbf 0%, #006e4a 100%);
             min-height: 100vh;
         }
     </style>
@@ -20,7 +33,7 @@
             <div class="flex items-center justify-center mb-4">
                 <img src="/static/bears-pts logo.jpg" alt="BEARS Logo" class="h-20">
             </div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Invoice Generator</h1>
+            <h1 class="text-3xl font-bold text-navy mb-2">Invoice Generator</h1>
             <p class="text-gray-600">Upload a CSV file to generate your invoice</p>
         </div>
 
@@ -42,12 +55,12 @@
                         name="csv_file" 
                         accept=".csv"
                         required
-                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-accent-dark hover:file:bg-blue-100"
                     >
                 </div>
                 <button 
                     type="submit"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                    class="w-full bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                 >
                     Generate Invoice
                 </button>
@@ -55,7 +68,7 @@
         </div>
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-3">CSV Format Guide</h2>
+            <h2 class="text-lg font-semibold text-navy mb-3">CSV Format Guide</h2>
             <div class="text-sm text-gray-700 space-y-2">
                 <p><strong>Your CSV should include the following columns:</strong></p>
                 <ul class="list-disc list-inside space-y-1 ml-2">
@@ -73,7 +86,7 @@
         </div>
 
         <div class="text-center">
-            <a href="/invoice" class="text-blue-600 hover:text-blue-800 text-sm">
+            <a href="/invoice" class="text-accent hover:text-accent-dark text-sm">
                 View Example Invoice →
             </a>
         </div>

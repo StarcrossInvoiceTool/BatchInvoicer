@@ -5,11 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Summary Backing Data Editor - Batch Invoicer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#edf7f2',100:'#d1eddf',200:'#a3dbbf',DEFAULT:'#00855a',dark:'#006e4a',darkest:'#013220',medium:'#388e6c' },
+            navy: { DEFAULT:'#0a2240',dark:'#061829' },
+            accent: { DEFAULT:'#4285f4',dark:'#3367c7' },
+          }
+        }
+      }
+    }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, #a3dbbf 0%, #006e4a 100%);
             min-height: 100vh;
         }
         .editor-table input {
@@ -22,7 +35,7 @@
         }
         .editor-table input:focus {
             background: #eff6ff;
-            box-shadow: inset 0 0 0 2px #3b82f6;
+            box-shadow: inset 0 0 0 2px #4285f4;
             border-radius: 2px;
         }
         .editor-table td {
@@ -32,7 +45,7 @@
             max-width: 250px;
         }
         .editor-table td.cell-edited {
-            background: #fefce8;
+            background: #eff6ff;
         }
         .editor-table th {
             position: sticky;
@@ -47,14 +60,14 @@
         <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
             <div class="mb-6">
                 <div class="mb-2">
-                    <a href="#" id="back-btn" class="text-blue-600 hover:text-blue-800 text-sm inline-block">← Back to Invoice Creator</a>
+                    <a href="#" id="back-btn" class="text-accent hover:text-accent-dark text-sm inline-block">← Back to Invoice Creator</a>
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">Summary Backing Data Editor</h1>
+                <h1 class="text-3xl font-bold text-navy mb-2">Summary Backing Data Editor</h1>
                 <p id="subtitle" class="text-gray-600">Edit the summary backing data sheet for your invoice</p>
             </div>
 
             <div id="loading" class="text-center py-8">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
                 <p class="mt-2 text-gray-600">Loading summary data...</p>
             </div>
 
@@ -64,13 +77,13 @@
 
             <div id="editor-section" class="hidden">
                 <div class="flex flex-wrap gap-3 mb-4 items-center">
-                    <button id="save-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200">
+                    <button id="save-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-6 rounded-lg transition duration-200">
                         Save Changes
                     </button>
-                    <button id="download-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200">
+                    <button id="download-btn" class="bg-navy hover:bg-navy-dark text-white font-bold py-2 px-6 rounded-lg transition duration-200">
                         Download CSV
                     </button>
-                    <button id="add-row-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                    <button id="add-row-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
                         + Add Row
                     </button>
                     <span id="save-status" class="text-sm text-gray-500 ml-2"></span>
@@ -270,7 +283,7 @@
 
                 hasUnsavedChanges = false;
                 statusEl.textContent = 'Saved successfully';
-                statusEl.className = 'text-sm text-green-600 ml-2';
+                statusEl.className = 'text-sm text-accent ml-2';
                 setTimeout(() => { statusEl.textContent = ''; }, 3000);
             } catch (e) {
                 statusEl.textContent = 'Save failed: ' + e.message;

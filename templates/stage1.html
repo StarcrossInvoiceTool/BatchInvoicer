@@ -5,11 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Preparation - Batch Invoicer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#edf7f2',100:'#d1eddf',200:'#a3dbbf',DEFAULT:'#00855a',dark:'#006e4a',darkest:'#013220',medium:'#388e6c' },
+            navy: { DEFAULT:'#0a2240',dark:'#061829' },
+            accent: { DEFAULT:'#4285f4',dark:'#3367c7' },
+          }
+        }
+      }
+    }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, #a3dbbf 0%, #006e4a 100%);
             min-height: 100vh;
         }
     </style>
@@ -17,8 +30,8 @@
 <body class="flex items-center justify-center min-h-screen p-4">
     <div class="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full">
         <div class="mb-6">
-            <a href="/" class="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">← Back to Home</a>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Data Preparation</h1>
+            <a href="/" class="text-accent hover:text-accent-dark text-sm mb-4 inline-block">← Back to Home</a>
+            <h1 class="text-3xl font-bold text-navy mb-2">Data Preparation</h1>
             <p class="text-gray-600">Choose a conversion option below</p>
         </div>
 
@@ -26,7 +39,7 @@
         <div class="flex border-b border-gray-200 mb-6">
             <button 
                 id="tab-xlsx" 
-                class="flex-1 py-3 px-4 text-center font-semibold text-gray-700 border-b-2 border-blue-600 bg-blue-50 transition duration-200"
+                class="flex-1 py-3 px-4 text-center font-semibold text-gray-700 border-b-2 border-accent bg-blue-50 transition duration-200"
                 onclick="switchTab('xlsx')"
             >
                 XLSX to CSV
@@ -50,7 +63,7 @@
         <!-- XLSX to CSV Section -->
         <div id="section-xlsx" class="tab-section">
             <div class="mb-4">
-                <h2 class="text-xl font-semibold text-gray-800 mb-2">XLSX to CSV</h2>
+                <h2 class="text-xl font-semibold text-navy mb-2">XLSX to CSV</h2>
                 <p class="text-gray-600 text-sm mb-4">Upload an Excel file and convert each sheet to separate CSV files</p>
             </div>
             <div id="upload-section-xlsx" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
@@ -65,13 +78,13 @@
                             name="file"
                             accept=".xlsx,.xls"
                             required
-                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-accent-dark hover:file:bg-blue-100"
                         >
                     </div>
                     <button 
                         type="submit"
                         id="submit-btn-xlsx"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="w-full bg-accent hover:bg-accent-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Convert to CSV
                     </button>
@@ -82,7 +95,7 @@
         <!-- CSV to CSV Section -->
         <div id="section-csv" class="tab-section hidden">
             <div class="mb-4">
-                <h2 class="text-xl font-semibold text-gray-800 mb-2">CSV to CSV</h2>
+                <h2 class="text-xl font-semibold text-navy mb-2">CSV to CSV</h2>
                 <p class="text-gray-600 text-sm mb-4">Upload a CSV file and split it into multiple CSV files based on BudgetCodeText column</p>
             </div>
             <div id="upload-section-csv" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
@@ -97,13 +110,13 @@
                             name="file"
                             accept=".csv"
                             required
-                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-accent-dark hover:file:bg-blue-100"
                         >
                     </div>
                     <button 
                         type="submit"
                         id="submit-btn-csv"
-                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="w-full bg-accent hover:bg-accent-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Split CSV by Budget Code
                     </button>
@@ -114,7 +127,7 @@
         <!-- Merge CSVs Section -->
         <div id="section-merge" class="tab-section hidden">
             <div class="mb-4">
-                <h2 class="text-xl font-semibold text-gray-800 mb-2">Merge CSVs</h2>
+                <h2 class="text-xl font-semibold text-navy mb-2">Merge CSVs</h2>
                 <p class="text-gray-600 text-sm mb-4">Upload multiple CSV files or select from previous division to merge them into one large CSV file</p>
             </div>
             
@@ -128,7 +141,7 @@
                     </div>
                     <button 
                         id="use-division-files-btn"
-                        class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+                        class="mt-3 w-full bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded transition duration-200"
                     >
                         Merge Selected Files
                     </button>
@@ -150,7 +163,7 @@
                             name="files"
                             accept=".csv"
                             multiple
-                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-accent-dark hover:file:bg-blue-100"
                         >
                         <p class="mt-2 text-xs text-gray-500">Hold Ctrl (or Cmd on Mac) to select multiple files</p>
                     </div>
@@ -170,7 +183,7 @@
                     <button 
                         type="submit"
                         id="submit-btn-merge"
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="w-full bg-accent hover:bg-accent-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Merge CSV Files
                     </button>
@@ -179,7 +192,7 @@
         </div>
 
         <div id="loading" class="hidden text-center py-4">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
             <p class="mt-2 text-gray-600">Processing file...</p>
         </div>
 
@@ -187,8 +200,8 @@
             <p class="text-red-800 text-sm"></p>
         </div>
 
-        <div id="success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <p class="text-green-800 text-sm mb-2" id="success-message">Conversion successful! <span id="file-count"></span></p>
+        <div id="success" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-navy text-sm mb-2" id="success-message">Conversion successful! <span id="file-count"></span></p>
             
             <!-- File Selection Section (for CSV division and merge) -->
             <div id="file-selection-section" class="hidden mt-4 mb-4">
@@ -196,16 +209,16 @@
                 <div id="file-selection-list" class="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded p-3 bg-white mb-3">
                     <!-- Files will be populated here -->
                 </div>
-                <button id="continue-with-selected-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                <button id="continue-with-selected-btn" class="w-full bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded transition duration-200">
                     Continue to Invoice Creation with Selected Files
                 </button>
             </div>
             
             <div class="flex gap-3 mt-3">
-                <a id="download-link" href="#" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                <a id="download-link" href="#" class="inline-block bg-navy hover:bg-navy-dark text-white font-bold py-2 px-4 rounded transition duration-200">
                     Download ZIP File
                 </a>
-                <button id="continue-to-invoices-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                <button id="continue-to-invoices-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded transition duration-200">
                     Continue to Invoice Creation (All Files)
                 </button>
             </div>
@@ -233,7 +246,7 @@
             
             // Remove active styling from all tabs
             document.querySelectorAll('[id^="tab-"]').forEach(btn => {
-                btn.classList.remove('border-b-2', 'border-blue-600', 'bg-blue-50', 'text-gray-700');
+                btn.classList.remove('border-b-2', 'border-accent', 'bg-blue-50', 'text-gray-700');
                 btn.classList.add('text-gray-500');
             });
             
@@ -242,7 +255,7 @@
             
             // Add active styling to selected tab
             const activeTab = document.getElementById(`tab-${tab}`);
-            activeTab.classList.add('border-b-2', 'border-blue-600', 'bg-blue-50', 'text-gray-700');
+            activeTab.classList.add('border-b-2', 'border-accent', 'bg-blue-50', 'text-gray-700');
             activeTab.classList.remove('text-gray-500');
             
             // Hide error messages when switching tabs
@@ -1054,7 +1067,7 @@
                     // Add button to use selected file
                     const useFileBtn = document.createElement('button');
                     useFileBtn.id = 'use-previous-file-csv-btn';
-                    useFileBtn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200';
+                    useFileBtn.className = 'w-full bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded transition duration-200';
                     useFileBtn.textContent = 'Use Selected File';
                     useFileBtn.onclick = async () => {
                         const selectedRadio = document.querySelector('input[name="previous-file-csv"]:checked');

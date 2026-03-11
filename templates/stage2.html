@@ -5,11 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice Creation: CSV to Invoice - Batch Invoicer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#edf7f2',100:'#d1eddf',200:'#a3dbbf',DEFAULT:'#00855a',dark:'#006e4a',darkest:'#013220',medium:'#388e6c' },
+            navy: { DEFAULT:'#0a2240',dark:'#061829' },
+            accent: { DEFAULT:'#4285f4',dark:'#3367c7' },
+          }
+        }
+      }
+    }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, #a3dbbf 0%, #006e4a 100%);
             min-height: 100vh;
         }
     </style>
@@ -19,12 +32,12 @@
         <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
             <div class="mb-6">
                 <div class="mb-2">
-                    <a href="/" class="text-blue-600 hover:text-blue-800 text-sm mb-2 inline-block">← Back to Home</a>
+                    <a href="/" class="text-accent hover:text-accent-dark text-sm mb-2 inline-block">← Back to Home</a>
                 </div>
                 <div class="mb-2">
-                    <a href="#" id="back-to-previous-btn" class="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block hidden">← Back to Previous Page</a>
+                    <a href="#" id="back-to-previous-btn" class="text-accent hover:text-accent-dark text-sm mb-4 inline-block hidden">← Back to Previous Page</a>
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">Invoice Creation: CSV to Invoice</h1>
+                <h1 class="text-3xl font-bold text-navy mb-2">Invoice Creation: CSV to Invoice</h1>
                 <p class="text-gray-600">Upload a CSV file, edit invoice details, and generate HTML invoice</p>
             </div>
 
@@ -42,13 +55,13 @@
                             accept=".csv"
                             multiple
                             required
-                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-accent-dark hover:file:bg-blue-100"
                         >
                         <p class="mt-2 text-xs text-gray-500">Hold Ctrl (or Cmd on Mac) to select multiple files</p>
                     </div>
                     <button 
                         type="submit"
-                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                        class="w-full bg-accent hover:bg-accent-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                     >
                         Upload and Process CSV(s)
                     </button>
@@ -59,25 +72,25 @@
             <div id="invoice-list-section" class="hidden bg-white rounded-lg shadow-2xl p-8 mb-6">
                 <!-- Summary template CSV (empty sheet to fill with amounts, sent with PDF) -->
                 <div id="summary-template-section" class="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Summary sheet (optional)</h3>
+                    <h3 class="text-lg font-semibold text-navy mb-2">Summary sheet (optional)</h3>
                     <p class="text-sm text-gray-600 mb-3">Upload an empty CSV (e.g. adhoc_backingdata.csv) with column headers. Match each of its columns to a column from the <strong>currently selected</strong> CSV sheet (e.g. adhoc.csv). Data from all CSV sheets will be copied into the summary according to this mapping; the filled sheet is included in the ZIP.</p>
                     <div id="summary-template-upload-wrap" class="flex flex-wrap items-center gap-3">
                         <input type="file" id="summary-template-file" accept=".csv" class="hidden">
-                        <button type="button" id="summary-template-upload-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                        <button type="button" id="summary-template-upload-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
                             Upload summary template CSV
                         </button>
                         <span id="summary-template-status" class="text-sm text-gray-600 hidden"></span>
-                        <button type="button" id="summary-template-change-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                        <button type="button" id="summary-template-change-btn" class="hidden bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
                             Change template / mapping
                         </button>
                     </div>
                 </div>
 
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold text-gray-800">Invoices</h2>
+                    <h2 class="text-2xl font-bold text-navy">Invoices</h2>
                     <button 
                         id="download-all-btn"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                        class="bg-navy hover:bg-navy-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                     >
                         Download All as ZIP
                     </button>
@@ -105,7 +118,7 @@
                             <p id="column-mapping-source-name" class="mt-3 text-xs text-gray-500 hidden"></p>
                         </div>
                         <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                            <button type="button" id="column-mapping-save-btn" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                            <button type="button" id="column-mapping-save-btn" class="w-full sm:w-auto bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg">
                                 Save mapping
                             </button>
                             <button type="button" id="column-mapping-cancel-btn" class="mt-2 sm:mt-0 w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
@@ -117,7 +130,7 @@
             </div>
 
             <div id="loading" class="hidden text-center py-4">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
                 <p class="mt-2 text-gray-600">Processing CSV file...</p>
             </div>
 
@@ -130,19 +143,19 @@
         <div id="editing-section" class="hidden bg-white rounded-lg shadow-2xl p-8">
             <div class="flex justify-between items-center mb-6">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-800">Edit Invoice Details</h2>
+                    <h2 class="text-2xl font-bold text-navy">Edit Invoice Details</h2>
                     <p id="current-invoice-name" class="text-sm text-gray-500 mt-1"></p>
                 </div>
                 <div class="flex gap-2" id="invoice-navigation" style="display: none;">
                     <button 
                         id="prev-invoice-btn"
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                     >
                         ← Previous
                     </button>
                     <button 
                         id="next-invoice-btn"
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                     >
                         Next →
                     </button>
@@ -152,7 +165,7 @@
             <form id="invoice-form">
                 <!-- Client Information -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Client Information</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Client Information</h3>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
@@ -171,7 +184,7 @@
 
                 <!-- Invoice Header Information -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Header</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Invoice Header</h3>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
@@ -206,7 +219,7 @@
 
                 <!-- Financial Information -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Financial Information</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Financial Information</h3>
                     <div class="space-y-4">
                         <div class="grid md:grid-cols-2 gap-4">
                             <div>
@@ -267,7 +280,7 @@
 
                 <!-- Bank Details -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Bank Details (Static)</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Bank Details (Static)</h3>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
@@ -290,7 +303,7 @@
 
                 <!-- Invoice Style Selection -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Style</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Invoice Style</h3>
                     <div class="space-y-4">
                         <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                             <input 
@@ -299,7 +312,7 @@
                                 name="invoice-style" 
                                 value="style1"
                                 checked
-                                class="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                class="w-5 h-5 text-accent border-gray-300 focus:ring-accent"
                                 onchange="toggleStyleOptions()"
                             >
                             <label for="style1-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
@@ -312,7 +325,7 @@
                                 id="style2-radio" 
                                 name="invoice-style" 
                                 value="style2"
-                                class="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                class="w-5 h-5 text-accent border-gray-300 focus:ring-accent"
                                 onchange="toggleStyleOptions()"
                             >
                             <label for="style2-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
@@ -334,7 +347,7 @@
 
                 <!-- Pricing Configuration -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Pricing Configuration</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Pricing Configuration</h3>
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                         <div class="grid md:grid-cols-3 gap-4">
                             <div>
@@ -355,7 +368,7 @@
                                 type="button"
                                 id="calculate-totals-btn"
                                 onclick="calculateSelectedTotals()"
-                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200"
+                                class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-6 rounded-lg transition duration-200"
                             >
                                 Calculate Selected Totals
                             </button>
@@ -369,7 +382,7 @@
 
                 <!-- Invoice Line Items -->
                 <div class="mb-8">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Invoice Line Items</h3>
+                    <h3 class="text-xl font-semibold text-navy mb-4">Invoice Line Items</h3>
                     <div class="overflow-x-auto">
                         <table class="min-w-full border border-gray-300 rounded-lg">
                             <thead class="bg-gray-50">
@@ -407,7 +420,7 @@
                         <input 
                             type="checkbox" 
                             id="paid-stamp-checkbox" 
-                            class="w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                            class="w-5 h-5 text-accent border-gray-300 rounded focus:ring-accent"
                         >
                         <label for="paid-stamp-checkbox" class="text-sm font-medium text-gray-700 cursor-pointer">
                             Mark Invoice as Paid (Add "PAID" stamp to first page)
@@ -420,20 +433,20 @@
                     <button 
                         type="button"
                         id="preview-btn"
-                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                        class="flex-1 bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                     >
                         Preview Invoice
                     </button>
                     <button
                         type="button"
                         id="edit-summary-btn"
-                        class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                        class="flex-1 bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                     >
                         Edit Summary Data
                     </button>
                     <button 
                         type="submit"
-                        class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                        class="flex-1 bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                     >
                         Generate & Download Invoice
                     </button>
@@ -442,9 +455,9 @@
         </div>
 
         <!-- Success Message -->
-        <div id="success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
-            <p class="text-green-800 text-sm mb-2">Invoice generated successfully!</p>
-            <a id="download-link" href="#" download class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+        <div id="success" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+            <p class="text-navy text-sm mb-2">Invoice generated successfully!</p>
+            <a id="download-link" href="#" download class="inline-block bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded transition duration-200">
                 Download HTML Invoice
             </a>
         </div>
@@ -766,14 +779,14 @@
             
             invoices.forEach((invoice, index) => {
                 const invoiceItem = document.createElement('div');
-                invoiceItem.className = `flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 ${index === currentInvoiceIndex ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}`;
+                invoiceItem.className = `flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 ${index === currentInvoiceIndex ? 'bg-blue-50 border-accent' : 'hover:bg-gray-50'}`;
                 invoiceItem.onclick = () => {
                     currentInvoiceIndex = index;
                     loadInvoice(invoice);
                     // Update active state
                     document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
                         if (idx === index) {
-                            item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
+                            item.className = 'flex justify-between items-center p-4 border border-accent rounded-lg cursor-pointer transition duration-200 bg-blue-50';
                         } else {
                             item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
                         }
@@ -787,7 +800,7 @@
                     </div>
                     <button 
                         onclick="event.stopPropagation(); downloadSingleInvoice('${invoice.session_id}', '${invoice.filename}')"
-                        class="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm"
+                        class="ml-4 bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm"
                     >
                         Download
                     </button>
@@ -833,7 +846,7 @@
                 // Update list highlighting
                 document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
                     if (idx === currentInvoiceIndex) {
-                        item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
+                        item.className = 'flex justify-between items-center p-4 border border-accent rounded-lg cursor-pointer transition duration-200 bg-blue-50';
                     } else {
                         item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
                     }
@@ -848,7 +861,7 @@
                 // Update list highlighting
                 document.querySelectorAll('#invoice-list > div').forEach((item, idx) => {
                     if (idx === currentInvoiceIndex) {
-                        item.className = 'flex justify-between items-center p-4 border border-blue-500 rounded-lg cursor-pointer transition duration-200 bg-blue-50';
+                        item.className = 'flex justify-between items-center p-4 border border-accent rounded-lg cursor-pointer transition duration-200 bg-blue-50';
                     } else {
                         item.className = 'flex justify-between items-center p-4 border border-gray-300 rounded-lg cursor-pointer transition duration-200 hover:bg-gray-50';
                     }

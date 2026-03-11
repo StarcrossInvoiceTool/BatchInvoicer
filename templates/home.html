@@ -5,11 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Invoicer - BEARS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#edf7f2',100:'#d1eddf',200:'#a3dbbf',DEFAULT:'#00855a',dark:'#006e4a',darkest:'#013220',medium:'#388e6c' },
+            navy: { DEFAULT:'#0a2240',dark:'#061829' },
+            accent: { DEFAULT:'#4285f4',dark:'#3367c7' },
+          }
+        }
+      }
+    }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, #a3dbbf 0%, #006e4a 100%);
             min-height: 100vh;
         }
     </style>
@@ -23,15 +36,15 @@
                     <img src="/static/bears-pts logo.jpg" alt="BEARS Logo" class="h-20">
                 </div>
                 <div class="text-right">
-                    <a href="/logout" class="text-sm text-gray-600 hover:text-gray-800 underline">
+                    <a href="/logout" class="text-sm text-navy hover:text-accent underline">
                         Logout
                     </a>
                 </div>
             </div>
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">Batch Invoicer</h1>
-            <p class="text-gray-600">British Emergency Ambulance Response Service</p>
+            <h1 class="text-4xl font-bold text-navy mb-2">Batch Invoicer</h1>
+            <p class="text-navy">British Emergency Ambulance Response Service</p>
             {% if username %}
-            <p class="text-sm text-gray-500 mt-2">Logged in as: {{ username }}</p>
+            <p class="text-sm text-navy mt-2">Logged in as: {{ username }}</p>
             {% endif %}
         </div>
 
@@ -40,9 +53,9 @@
                 <div class="bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-6 transition duration-200 cursor-pointer">
                     <div class="text-center">
                         <div class="text-4xl mb-4">📊</div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Data Preparation</h2>
-                        <h3 class="text-lg font-semibold text-blue-700 mb-3">XLSX to CSV</h3>
-                        <p class="text-gray-600 text-sm">
+                        <h2 class="text-2xl font-bold text-navy mb-2">Data Preparation</h2>
+                        <h3 class="text-lg font-semibold text-navy mb-3">XLSX to CSV</h3>
+                        <p class="text-navy text-sm">
                             Upload an Excel file (.xlsx) and convert each sheet into separate CSV files. 
                             Download all CSV files as a ZIP archive.
                         </p>
@@ -51,12 +64,12 @@
             </a>
 
             <a href="/stage2" class="block" onclick="sessionStorage.setItem('previousPage', JSON.stringify({url: window.location.href, state: null}));">
-                <div class="bg-green-50 hover:bg-green-100 border-2 border-green-200 rounded-lg p-6 transition duration-200 cursor-pointer">
+                <div class="bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-6 transition duration-200 cursor-pointer">
                     <div class="text-center">
                         <div class="text-4xl mb-4">📄</div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Invoice Creation</h2>
-                        <h3 class="text-lg font-semibold text-green-700 mb-3">CSV to Invoice</h3>
-                        <p class="text-gray-600 text-sm">
+                        <h2 class="text-2xl font-bold text-navy mb-2">Invoice Creation</h2>
+                        <h3 class="text-lg font-semibold text-navy mb-3">CSV to Invoice</h3>
+                        <p class="text-navy text-sm">
                             Upload a CSV file, edit invoice details through the UI, and generate a professional HTML invoice.
                         </p>
                     </div>
@@ -64,12 +77,12 @@
             </a>
 
             <a href="/stage3" class="block" onclick="sessionStorage.setItem('previousPage', JSON.stringify({url: window.location.href, state: null}));">
-                <div class="bg-purple-50 hover:bg-purple-100 border-2 border-purple-200 rounded-lg p-6 transition duration-200 cursor-pointer">
+                <div class="bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-6 transition duration-200 cursor-pointer">
                     <div class="text-center">
                         <div class="text-4xl mb-4">💾</div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Invoice Editing</h2>
-                        <h3 class="text-lg font-semibold text-purple-700 mb-3">Edit Saved Invoice</h3>
-                        <p class="text-gray-600 text-sm">
+                        <h2 class="text-2xl font-bold text-navy mb-2">Invoice Editing</h2>
+                        <h3 class="text-lg font-semibold text-navy mb-3">Edit Saved Invoice</h3>
+                        <p class="text-navy text-sm">
                             Upload a saved HTML invoice draft, edit the details through the UI, and regenerate the invoice.
                         </p>
                     </div>
