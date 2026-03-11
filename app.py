@@ -1882,13 +1882,16 @@ async def upload_html(file: UploadFile = File(...), current_user: str = Depends(
 async def update_invoice(
     session_id: str = Form(...),
     invoice_data_json: str = Form(...),
+    preview: str = Form("false"),
     current_user: str = Depends(require_auth)
 ):
     """
-    Invoice Creation: Update invoice data and generate HTML
+    Invoice Creation: Update invoice data and generate HTML.
+    When preview=true, always return just the HTML (no ZIP with summary).
     """
     try:
         invoice_data = json.loads(invoice_data_json)
+        is_preview = preview.lower() in ("true", "1", "yes")
         
         # Find the temp directory for this session
         temp_dir = None
@@ -1915,52 +1918,32 @@ async def update_invoice(
             template_name=None
         )
         
-        # If summary template + mapping exist, build filled summary (line-item rows + calculated values) and return ZIP
-        template_path = os.path.join(temp_dir, "summary_template.csv")
-        mapping_path = os.path.join(temp_dir, "summary_mapping.json")
-        source_csv_path = os.path.join(temp_dir, f"{session_id}_source.csv")
-        if os.path.isfile(template_path) and os.path.isfile(mapping_path) and os.path.isfile(source_csv_path):
+        # When previewing, skip the summary ZIP and return HTML only
+        if not is_preview:
             try:
-                with open(mapping_path, "r", encoding="utf-8") as f:
-                    mapping = json.load(f)
-                print(f"[SUMMARY DEBUG] Mapping: {mapping}")
-                template_df = pd.read_csv(template_path)
-                summary_columns = list(template_df.columns)
-                source_df = pd.read_csv(source_csv_path)
-
-                items = (invoice_data.get("invoice") or {}).get("items") or []
-                if items:
-                    sample = items[0]
-                    print(f"[SUMMARY DEBUG] First item keys: {list(sample.keys())}")
-                    print(f"[SUMMARY DEBUG] First item job_pounds={sample.get('job_pounds')!r}, miles_pounds={sample.get('miles_pounds')!r}, total={sample.get('total')!r}")
-                else:
-                    print("[SUMMARY DEBUG] No items in invoice_data!")
-
-                rows = _build_summary_rows_from_line_items(
-                    invoice_data, source_df, summary_columns, mapping
-                )
-                print(f"[SUMMARY DEBUG] Built {len(rows)} summary rows")
-                if rows:
-                    print(f"[SUMMARY DEBUG] First row: {rows[0]}")
-                    out_df = pd.DataFrame(rows, columns=summary_columns)
-                    summary_csv_path = os.path.join(temp_dir, f"summary_single_{session_id}.csv")
-                    out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
-                    src_fn_path = os.path.join(temp_dir, f"{session_id}_source_filename.txt")
-                    if os.path.isfile(src_fn_path):
-                        with open(src_fn_path, "r", encoding="utf-8") as fn:
-                            invoice_stem = Path(fn.read().strip()).stem
-                    else:
-                        invoice_stem = Path(html_file).stem
-                    backing_name = f"{invoice_stem}_backing_data.csv"
-                    zip_path = os.path.join(temp_dir, f"invoice_and_summary_{session_id}.zip")
-                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                        zipf.write(html_file, Path(html_file).name)
-                        zipf.write(summary_csv_path, backing_name)
-                    return FileResponse(
-                        zip_path,
-                        media_type="application/zip",
-                        filename=f"invoice_and_summary_{Path(html_file).stem}.zip"
-                    )
+                result = _build_merged_summary(temp_dir, session_id, invoice_data)
+                if result is not None:
+                    summary_columns, merged_rows, _ = result
+                    if merged_rows:
+                        out_df = pd.DataFrame(merged_rows, columns=summary_columns)
+                        summary_csv_path = os.path.join(temp_dir, f"summary_single_{session_id}.csv")
+                        out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
+                        src_fn_path = os.path.join(temp_dir, f"{session_id}_source_filename.txt")
+                        if os.path.isfile(src_fn_path):
+                            with open(src_fn_path, "r", encoding="utf-8") as fn:
+                                invoice_stem = Path(fn.read().strip()).stem
+                        else:
+                            invoice_stem = Path(html_file).stem
+                        backing_name = f"{invoice_stem}_backing_data.csv"
+                        zip_path = os.path.join(temp_dir, f"invoice_and_summary_{session_id}.zip")
+                        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                            zipf.write(html_file, Path(html_file).name)
+                            zipf.write(summary_csv_path, backing_name)
+                        return FileResponse(
+                            zip_path,
+                            media_type="application/zip",
+                            filename=f"invoice_and_summary_{Path(html_file).stem}.zip"
+                        )
             except Exception as summary_err:
                 print(f"[SUMMARY ERROR] Summary build failed: {summary_err}")
                 import traceback
@@ -2189,6 +2172,55 @@ def _build_summary_rows_from_line_items(
     return rows
 
 
+def _build_merged_summary(temp_dir: str, session_id: str, invoice_data: dict):
+    """
+    Build summary rows from the current invoice data, then overlay any cells
+    that the user has previously manually edited and saved.
+    Returns (columns, rows, edited_cells) or None when no template/mapping.
+    """
+    template_path = os.path.join(temp_dir, "summary_template.csv")
+    mapping_path = os.path.join(temp_dir, "summary_mapping.json")
+    source_csv_path = os.path.join(temp_dir, f"{session_id}_source.csv")
+
+    if not os.path.isfile(template_path) or not os.path.isfile(mapping_path):
+        return None
+
+    with open(mapping_path, "r", encoding="utf-8") as f:
+        mapping = json.load(f)
+    template_df = pd.read_csv(template_path)
+    summary_columns = list(template_df.columns)
+    source_df = pd.read_csv(source_csv_path) if os.path.isfile(source_csv_path) else pd.DataFrame()
+
+    _ensure_line_item_charges(invoice_data)
+    fresh_rows = _build_summary_rows_from_line_items(
+        invoice_data, source_df, summary_columns, mapping
+    )
+
+    saved_csv_path = os.path.join(temp_dir, f"summary_single_{session_id}.csv")
+    edits_mask_path = os.path.join(temp_dir, f"summary_edits_{session_id}.json")
+    edited_cells = []
+
+    if os.path.isfile(saved_csv_path) and os.path.isfile(edits_mask_path):
+        try:
+            saved_df = pd.read_csv(saved_csv_path, dtype=str).fillna("")
+            saved_rows = saved_df.values.tolist()
+            with open(edits_mask_path, "r", encoding="utf-8") as f:
+                mask_data = json.load(f)
+            saved_edits = mask_data.get("edited_cells", [])
+
+            surviving_edits = []
+            for rc in saved_edits:
+                r, c = rc[0], rc[1]
+                if r < len(fresh_rows) and r < len(saved_rows) and c < len(summary_columns):
+                    fresh_rows[r][c] = saved_rows[r][c]
+                    surviving_edits.append([r, c])
+            edited_cells = surviving_edits
+        except Exception:
+            pass
+
+    return summary_columns, fresh_rows, edited_cells
+
+
 # Calculated fields for summary mapping (exposed to frontend for dropdown)
 SUMMARY_CALCULATED_FIELDS = [
     {"id": "_date", "label": "Date (calculated)"},
@@ -2328,6 +2360,163 @@ async def summary_template_status(
         "mapping": mapping_obj or {},
         "template_filename": template_filename,
     })
+
+
+@app.post("/api/generate-summary-data/{session_id}")
+async def generate_summary_data(
+    session_id: str,
+    invoice_data_json: str = Form(""),
+    current_user: str = Depends(require_auth),
+):
+    """
+    Always regenerate summary from the current invoice data, then overlay
+    any cells the user has previously manually edited and saved.
+    Returns the merged result plus the edited_cells mask so the frontend
+    can continue tracking which cells are user-owned.
+    """
+    try:
+        temp_dir = None
+        invoice_data_path = None
+        for root, dirs, files in os.walk("temp"):
+            for file in files:
+                if file == f"{session_id}_invoice_data.pkl":
+                    temp_dir = root
+                    invoice_data_path = os.path.join(root, file)
+                    break
+            if temp_dir:
+                break
+
+        if not temp_dir or not invoice_data_path:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if invoice_data_json:
+            invoice_data = json.loads(invoice_data_json)
+            with open(invoice_data_path, 'wb') as f:
+                pickle.dump(invoice_data, f)
+        else:
+            with open(invoice_data_path, 'rb') as f:
+                invoice_data = pickle.load(f)
+
+        result = _build_merged_summary(temp_dir, session_id, invoice_data)
+        if result is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No summary template or column mapping found. Please upload a summary template and set the column mapping first."
+            )
+
+        summary_columns, rows, edited_cells = result
+
+        tpl_name_path = os.path.join(temp_dir, "summary_template_filename.txt")
+        template_filename = None
+        if os.path.isfile(tpl_name_path):
+            with open(tpl_name_path, "r", encoding="utf-8") as fn:
+                template_filename = fn.read().strip()
+
+        src_fn_path = os.path.join(temp_dir, f"{session_id}_source_filename.txt")
+        source_filename = None
+        if os.path.isfile(src_fn_path):
+            with open(src_fn_path, "r", encoding="utf-8") as fn:
+                source_filename = fn.read().strip()
+
+        return JSONResponse({
+            "columns": summary_columns,
+            "rows": rows,
+            "edited_cells": edited_cells,
+            "template_filename": template_filename,
+            "source_filename": source_filename,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating summary data: {str(e)}")
+
+
+@app.post("/api/save-summary-edits/{session_id}")
+async def save_summary_edits(
+    session_id: str,
+    columns: str = Form(...),
+    rows: str = Form(...),
+    edited_cells: str = Form("[]"),
+    current_user: str = Depends(require_auth),
+):
+    """
+    Save edited summary CSV data and the edited-cells mask to disk.
+    The mask records which cells were manually touched so that future
+    regenerations can preserve them.
+    """
+    try:
+        cols = json.loads(columns)
+        row_data = json.loads(rows)
+        mask = json.loads(edited_cells)
+
+        temp_dir = None
+        for root, dirs, files in os.walk("temp"):
+            for file in files:
+                if file == f"{session_id}_invoice_data.pkl":
+                    temp_dir = root
+                    break
+            if temp_dir:
+                break
+
+        if not temp_dir:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        out_df = pd.DataFrame(row_data, columns=cols)
+        summary_csv_path = os.path.join(temp_dir, f"summary_single_{session_id}.csv")
+        out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
+
+        edits_mask_path = os.path.join(temp_dir, f"summary_edits_{session_id}.json")
+        with open(edits_mask_path, "w", encoding="utf-8") as f:
+            json.dump({"edited_cells": mask}, f)
+
+        return JSONResponse({"ok": True})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving summary: {str(e)}")
+
+
+@app.get("/api/download-summary-csv/{session_id}")
+async def download_summary_csv(
+    session_id: str,
+    current_user: str = Depends(require_auth),
+):
+    """Download the saved summary CSV for a single invoice session."""
+    temp_dir = None
+    for root, dirs, files in os.walk("temp"):
+        for file in files:
+            if file == f"{session_id}_invoice_data.pkl":
+                temp_dir = root
+                break
+        if temp_dir:
+            break
+
+    if not temp_dir:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    summary_csv_path = os.path.join(temp_dir, f"summary_single_{session_id}.csv")
+    if not os.path.isfile(summary_csv_path):
+        raise HTTPException(status_code=404, detail="Summary CSV not found. Generate summary data first.")
+
+    src_fn_path = os.path.join(temp_dir, f"{session_id}_source_filename.txt")
+    if os.path.isfile(src_fn_path):
+        with open(src_fn_path, "r", encoding="utf-8") as fn:
+            invoice_stem = Path(fn.read().strip()).stem
+    else:
+        invoice_stem = session_id
+    download_name = f"{invoice_stem}_backing_data.csv"
+
+    return FileResponse(
+        summary_csv_path,
+        media_type="text/csv",
+        filename=download_name,
+    )
+
+
+@app.get("/summary-editor", response_class=HTMLResponse)
+async def summary_editor_page(request: Request, current_user: str = Depends(require_auth)):
+    """Serve the in-browser summary CSV editor page."""
+    return templates.TemplateResponse("summary_editor.html", {"request": request})
 
 
 @app.post("/api/download-all-invoices")

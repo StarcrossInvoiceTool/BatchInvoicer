@@ -962,7 +962,7 @@
         };
         
 
-        // Handle preview
+        // Handle preview (HTML only, no ZIP)
         document.getElementById('preview-btn').addEventListener('click', async () => {
             if (!currentSessionId) return;
             
@@ -977,6 +977,7 @@
             const formDataToSend = new FormData();
             formDataToSend.append('session_id', currentSessionId);
             formDataToSend.append('invoice_data_json', JSON.stringify(formData));
+            formDataToSend.append('preview', 'true');
             
             try {
                 const response = await fetch('/api/update-invoice', {

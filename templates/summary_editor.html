@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summary Backing Data Editor - Batch Invoicer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .editor-table input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 4px 6px;
+            font-size: 0.8rem;
+            outline: none;
+        }
+        .editor-table input:focus {
+            background: #eff6ff;
+            box-shadow: inset 0 0 0 2px #3b82f6;
+            border-radius: 2px;
+        }
+        .editor-table td {
+            padding: 0;
+            border: 1px solid #e5e7eb;
+            min-width: 120px;
+            max-width: 250px;
+        }
+        .editor-table td.cell-edited {
+            background: #fefce8;
+        }
+        .editor-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="p-4 py-8">
+    <div class="max-w-full mx-auto px-4">
+        <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
+            <div class="mb-6">
+                <div class="mb-2">
+                    <a href="#" id="back-btn" class="text-blue-600 hover:text-blue-800 text-sm inline-block">← Back to Invoice Creator</a>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Summary Backing Data Editor</h1>
+                <p id="subtitle" class="text-gray-600">Edit the summary backing data sheet for your invoice</p>
+            </div>
+
+            <div id="loading" class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                <p class="mt-2 text-gray-600">Loading summary data...</p>
+            </div>
+
+            <div id="error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <p class="text-red-800 text-sm"></p>
+            </div>
+
+            <div id="editor-section" class="hidden">
+                <div class="flex flex-wrap gap-3 mb-4 items-center">
+                    <button id="save-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200">
+                        Save Changes
+                    </button>
+                    <button id="download-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200">
+                        Download CSV
+                    </button>
+                    <button id="add-row-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                        + Add Row
+                    </button>
+                    <span id="save-status" class="text-sm text-gray-500 ml-2"></span>
+                </div>
+                <p class="text-xs text-gray-400 mb-3">Highlighted cells contain your manual edits and will be preserved across recalculations.</p>
+
+                <div class="overflow-auto max-h-[70vh] border border-gray-300 rounded-lg">
+                    <table class="editor-table min-w-full border-collapse">
+                        <thead id="editor-thead">
+                        </thead>
+                        <tbody id="editor-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let columns = [];
+        let rows = [];
+        let sessionId = null;
+        let sourceFilenameGlobal = '';
+        let hasUnsavedChanges = false;
+
+        // Set of "row,col" strings tracking which cells the user has manually edited
+        let editedCellsSet = new Set();
+
+        // Back navigation
+        document.getElementById('back-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (hasUnsavedChanges && !confirm('You have unsaved changes. Are you sure you want to leave?')) {
+                return;
+            }
+            if (window.opener && !window.opener.closed) {
+                window.close();
+            } else {
+                window.location.href = '/stage2';
+            }
+        });
+
+        (async function init() {
+            const params = new URLSearchParams(window.location.search);
+            sessionId = params.get('session_id');
+            const storedData = sessionStorage.getItem('summaryEditorData');
+
+            if (!sessionId || !storedData) {
+                showError('Missing session data. Please open this page from the Invoice Creation page using the "Edit Summary Data" button.');
+                document.getElementById('loading').classList.add('hidden');
+                return;
+            }
+
+            try {
+                const summaryData = JSON.parse(storedData);
+                columns = summaryData.columns || [];
+                rows = summaryData.rows || [];
+                const templateFilename = summaryData.template_filename || 'summary';
+                sourceFilenameGlobal = summaryData.source_filename || '';
+
+                // Restore the edited-cells mask from the server response
+                if (Array.isArray(summaryData.edited_cells)) {
+                    summaryData.edited_cells.forEach(rc => {
+                        editedCellsSet.add(rc[0] + ',' + rc[1]);
+                    });
+                }
+
+                document.getElementById('subtitle').textContent =
+                    `Editing: ${templateFilename}` + (sourceFilenameGlobal ? ` (source: ${sourceFilenameGlobal})` : '');
+
+                renderTable();
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('editor-section').classList.remove('hidden');
+            } catch (e) {
+                showError('Failed to parse summary data: ' + e.message);
+                document.getElementById('loading').classList.add('hidden');
+            }
+        })();
+
+        function renderTable() {
+            const thead = document.getElementById('editor-thead');
+            const tbody = document.getElementById('editor-tbody');
+
+            let headerHtml = '<tr>';
+            headerHtml += '<th class="px-2 py-2 text-xs font-medium text-gray-500 border-b border-r bg-gray-100 text-center" style="min-width:40px">#</th>';
+            columns.forEach(col => {
+                const escaped = col.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                headerHtml += `<th class="px-3 py-2 text-left text-xs font-medium text-gray-700 border-b whitespace-nowrap">${escaped}</th>`;
+            });
+            headerHtml += '<th class="px-2 py-2 text-xs font-medium text-gray-500 border-b bg-gray-100 text-center" style="min-width:40px"></th>';
+            headerHtml += '</tr>';
+            thead.innerHTML = headerHtml;
+
+            tbody.innerHTML = '';
+            rows.forEach((row, rowIdx) => {
+                tbody.appendChild(createRow(row, rowIdx));
+            });
+        }
+
+        function createRow(row, rowIdx) {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+
+            let html = `<td class="px-2 py-1 text-xs text-gray-400 text-center border-r bg-gray-50">${rowIdx + 1}</td>`;
+            columns.forEach((col, colIdx) => {
+                const val = (row[colIdx] !== undefined && row[colIdx] !== null) ? String(row[colIdx]) : '';
+                const escaped = val.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                const isEdited = editedCellsSet.has(rowIdx + ',' + colIdx);
+                html += `<td class="${isEdited ? 'cell-edited' : ''}"><input type="text" value="${escaped}" data-row="${rowIdx}" data-col="${colIdx}" class="cell-input"></td>`;
+            });
+            html += `<td class="px-1 py-1 text-center bg-gray-50">
+                <button onclick="deleteRow(${rowIdx})" class="text-red-400 hover:text-red-600 text-xs font-bold" title="Delete row">&times;</button>
+            </td>`;
+
+            tr.innerHTML = html;
+            return tr;
+        }
+
+        function syncRowsFromDom() {
+            const inputs = document.querySelectorAll('.cell-input');
+            inputs.forEach(input => {
+                const r = parseInt(input.dataset.row);
+                const c = parseInt(input.dataset.col);
+                if (rows[r]) {
+                    rows[r][c] = input.value;
+                }
+            });
+        }
+
+        window.deleteRow = function(rowIdx) {
+            syncRowsFromDom();
+            rows.splice(rowIdx, 1);
+
+            // Rebuild edited cells mask: remove entries for deleted row, shift rows above it
+            const newSet = new Set();
+            editedCellsSet.forEach(key => {
+                const [r, c] = key.split(',').map(Number);
+                if (r < rowIdx) newSet.add(key);
+                else if (r > rowIdx) newSet.add((r - 1) + ',' + c);
+            });
+            editedCellsSet = newSet;
+            hasUnsavedChanges = true;
+
+            renderTable();
+        };
+
+        document.getElementById('add-row-btn').addEventListener('click', () => {
+            syncRowsFromDom();
+            rows.push(columns.map(() => ''));
+            renderTable();
+            const tbody = document.getElementById('editor-tbody');
+            const lastRow = tbody.lastElementChild;
+            if (lastRow) lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+
+        // Track per-cell edits
+        document.addEventListener('input', (e) => {
+            if (e.target.classList.contains('cell-input')) {
+                const r = e.target.dataset.row;
+                const c = e.target.dataset.col;
+                const key = r + ',' + c;
+                editedCellsSet.add(key);
+                hasUnsavedChanges = true;
+
+                // Highlight the cell immediately
+                const td = e.target.parentElement;
+                if (td) td.classList.add('cell-edited');
+            }
+        });
+
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            syncRowsFromDom();
+            const statusEl = document.getElementById('save-status');
+            statusEl.textContent = 'Saving...';
+            statusEl.className = 'text-sm text-gray-500 ml-2';
+
+            // Convert editedCellsSet to array of [row, col] pairs
+            const maskArray = Array.from(editedCellsSet).map(key => {
+                const [r, c] = key.split(',').map(Number);
+                return [r, c];
+            });
+
+            try {
+                const formData = new FormData();
+                formData.append('columns', JSON.stringify(columns));
+                formData.append('rows', JSON.stringify(rows));
+                formData.append('edited_cells', JSON.stringify(maskArray));
+
+                const response = await fetch(`/api/save-summary-edits/${sessionId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Save failed');
+                }
+
+                hasUnsavedChanges = false;
+                statusEl.textContent = 'Saved successfully';
+                statusEl.className = 'text-sm text-green-600 ml-2';
+                setTimeout(() => { statusEl.textContent = ''; }, 3000);
+            } catch (e) {
+                statusEl.textContent = 'Save failed: ' + e.message;
+                statusEl.className = 'text-sm text-red-600 ml-2';
+            }
+        });
+
+        document.getElementById('download-btn').addEventListener('click', () => {
+            syncRowsFromDom();
+
+            const escapeCsvField = (val) => {
+                const s = String(val ?? '');
+                if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                    return '"' + s.replace(/"/g, '""') + '"';
+                }
+                return s;
+            };
+
+            let csv = columns.map(escapeCsvField).join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(escapeCsvField).join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            let filename = 'summary_backing_data.csv';
+            if (sourceFilenameGlobal) {
+                const stem = sourceFilenameGlobal.replace(/\.[^.]+$/, '');
+                filename = stem + '_backing_data.csv';
+            }
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.querySelector('p').textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
