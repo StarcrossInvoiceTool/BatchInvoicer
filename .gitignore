@@ -69,4 +69,6 @@ logs/
 
 # Azure deployment files (keep these, but ignore any local Azure config)
 .azure/
-.md
+
+ENV_VARS.md
+run_with_ngrok.md

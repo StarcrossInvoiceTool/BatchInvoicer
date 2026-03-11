@@ -24,6 +24,8 @@ SESSION_COOKIE_NAME = "session_token"
 # Local (whitelist) authentication
 # ---------------------------------------------------------------------------
 WHITELIST_FILE = Path(__file__).parent / "whitelist.json"
+ADMIN_USER = os.getenv("ADMIN_USER", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 serializer = URLSafeTimedSerializer(SECRET_KEY)
@@ -32,14 +34,18 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 def load_whitelist() -> dict:
     """Load the whitelist from JSON file"""
     if not WHITELIST_FILE.exists():
-        default_whitelist = {
-            "users": [
-                {
-                    "username": "admin",
-                    "password": "admin123"
-                }
-            ]
-        }
+        if ADMIN_USER and ADMIN_PASSWORD:
+            default_whitelist = {
+                "users": [
+                    {
+                        "username": ADMIN_USER,
+                        "password_hash": pwd_context.hash(ADMIN_PASSWORD),
+                    }
+                ]
+            }
+        else:
+            default_whitelist = {"users": []}
+
         with open(WHITELIST_FILE, 'w') as f:
             json.dump(default_whitelist, f, indent=2)
         return default_whitelist
@@ -49,12 +55,18 @@ def load_whitelist() -> dict:
 
 
 def verify_user(username: str, password: str) -> bool:
-    """Verify if username and password match whitelist"""
+    """Verify if username and password match whitelist or env-based admin"""
+    if ADMIN_USER and ADMIN_PASSWORD:
+        if username == ADMIN_USER and password == ADMIN_PASSWORD:
+            return True
+
     whitelist = load_whitelist()
 
     for user in whitelist.get("users", []):
         if user.get("username") == username:
             stored_password = user.get("password") or user.get("password_hash")
+            if not stored_password:
+                return False
 
             if stored_password.startswith("$2b$") or stored_password.startswith("$2a$"):
                 return pwd_context.verify(password, stored_password)
