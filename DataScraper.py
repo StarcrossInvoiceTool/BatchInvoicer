@@ -105,7 +105,7 @@ def transform_dataframe_to_invoice_data(df):
     
     # Transform each row into an invoice item
     invoice_items = []
-    for _, row in df.iterrows():
+    for row_idx, (_, row) in enumerate(df.iterrows()):
         # Get date and our_ref, cleaning them
         date_value = str(row.get('Start Date', '')).strip()
         our_ref_value = clean_value(row.get('Record ID', ''))
@@ -118,6 +118,7 @@ def transform_dataframe_to_invoice_data(df):
             continue  # Skip this item
         
         item = {
+            '_source_row_index': row_idx,
             'date': date_value,
             'our_ref': our_ref_value,  # Already cleaned (removes .0 suffix)
             'client_ref': clean_value(row.get('Pas Number', '')),
@@ -129,13 +130,13 @@ def transform_dataframe_to_invoice_data(df):
             'status': str(row.get('Jrny Status Text', '')),
             'directions': str(row.get('Direction Text', '')),
             'mob': clean_value(row.get('Mobility Abbreviation', '')),
-            'wait_pounds': '',  # Financial field, to be filled later
+            'wait_pounds': '',
             'wait_notes': str(row.get('Waiting Time Reason', '')),
             'miles': clean_miles_value(row.get('Actual Mileage', '')),
-            'charged': '',  # Not in source data, left empty
-            'miles_pounds': '',  # Financial field, to be filled later
-            'job_pounds': '',  # Financial field, to be filled later
-            'total': ''  # Financial field, to be filled later
+            'charged': '',
+            'miles_pounds': '',
+            'job_pounds': '',
+            'total': ''
         }
         invoice_items.append(item)
     
