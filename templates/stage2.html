@@ -73,7 +73,7 @@
                 <!-- Summary template CSV (empty sheet to fill with amounts, sent with PDF) -->
                 <div id="summary-template-section" class="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
                     <h3 class="text-lg font-semibold text-navy mb-2">Summary sheet (optional)</h3>
-                    <p class="text-sm text-gray-600 mb-3">Upload an empty CSV (e.g. adhoc_backingdata.csv) with column headers. Match each of its columns to a column from the <strong>currently selected</strong> CSV sheet (e.g. adhoc.csv). Data from all CSV sheets will be copied into the summary according to this mapping; the filled sheet is included in the ZIP.</p>
+                    <p class="text-sm text-gray-600 mb-3">Upload an empty CSV (e.g. adhoc_backingdata.csv) with column headers for the <strong>currently selected invoice</strong>. Match each of its columns to a column from that invoice's source CSV. Each invoice can have its own summary sheet; the filled sheet is included when you download that invoice or the full ZIP.</p>
                     <div id="summary-template-upload-wrap" class="flex flex-wrap items-center gap-3">
                         <input type="file" id="summary-template-file" accept=".csv" class="hidden">
                         <button type="button" id="summary-template-upload-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
@@ -626,15 +626,15 @@
         });
 
         async function refreshSummaryTemplateStatus() {
-            if (!batchSessionId) return;
+            if (!batchSessionId || !currentSessionId) return;
             try {
-                const r = await fetch(`/api/summary-template-status/${batchSessionId}`);
+                const r = await fetch(`/api/summary-template-status/${batchSessionId}/${currentSessionId}`);
                 if (!r.ok) return;
                 const data = await r.json();
                 const statusEl = document.getElementById('summary-template-status');
                 const changeBtn = document.getElementById('summary-template-change-btn');
                 if (data.has_template && data.has_mapping) {
-                    statusEl.textContent = 'Summary template and mapping set. Filled sheet will be included in ZIP.';
+                    statusEl.textContent = 'Summary sheet set for this invoice. Filled sheet included when you download this invoice or the full ZIP.';
                     statusEl.classList.remove('hidden');
                     changeBtn.classList.remove('hidden');
                 } else if (data.has_template) {
@@ -707,11 +707,11 @@
             document.getElementById('summary-template-file').click();
         });
         document.getElementById('summary-template-change-btn').addEventListener('click', async () => {
-            if (!batchSessionId || !allInvoices.length) return;
+            if (!batchSessionId || !currentSessionId || !allInvoices.length) return;
             const inv = allInvoices[currentInvoiceIndex];
             const sourceHeaders = inv && inv.source_headers;
             try {
-                const statusRes = await fetch(`/api/summary-template-status/${batchSessionId}`);
+                const statusRes = await fetch(`/api/summary-template-status/${batchSessionId}/${currentSessionId}`);
                 if (!statusRes.ok) return;
                 const status = await statusRes.json();
                 if (!status.has_template || !status.columns || status.columns.length === 0) {
@@ -726,11 +726,12 @@
 
         document.getElementById('summary-template-file').addEventListener('change', async (e) => {
             const file = e.target.files && e.target.files[0];
-            if (!file || !batchSessionId) return;
+            if (!file || !batchSessionId || !currentSessionId) return;
             const inv = allInvoices[currentInvoiceIndex];
             const sourceHeaders = inv && inv.source_headers;
             const formData = new FormData();
             formData.append('batch_session_id', batchSessionId);
+            formData.append('invoice_session_id', currentSessionId);
             formData.append('file', file);
             try {
                 const res = await fetch('/api/upload-summary-template', { method: 'POST', body: formData });
@@ -755,6 +756,7 @@
             });
             const formData = new FormData();
             formData.append('batch_session_id', batchSessionId);
+            formData.append('invoice_session_id', currentSessionId);
             formData.append('mapping', JSON.stringify(mapping));
             try {
                 const res = await fetch('/api/set-summary-mapping', { method: 'POST', body: formData });
@@ -836,6 +838,8 @@
             // Update navigation buttons
             document.getElementById('prev-invoice-btn').disabled = currentInvoiceIndex === 0;
             document.getElementById('next-invoice-btn').disabled = currentInvoiceIndex === allInvoices.length - 1;
+
+            refreshSummaryTemplateStatus();
         }
 
         // Navigation buttons

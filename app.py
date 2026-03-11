@@ -322,11 +322,23 @@ def generate_invoice_html(invoice_data_path: str, template_name: str = None, emb
         # For preview, keep the static path (FastAPI will serve it)
         pass
     
-    # Save to invoice html folder
+    # Save to invoice html folder; name like summary sheet: source stem + '_invoice.html' (e.g. adhoc_invoice.html)
     invoice_html_dir = Path(__file__).parent / 'invoice html'
     invoice_html_dir.mkdir(exist_ok=True)
     
-    output_filename = Path(invoice_data_path).stem.replace('_invoice_data', '') + '_invoice.html'
+    session_id = Path(invoice_data_path).stem.replace('_invoice_data', '')
+    batch_dir = Path(invoice_data_path).parent
+    source_fn_path = batch_dir / f"{session_id}_source_filename.txt"
+    if source_fn_path.exists():
+        try:
+            with open(source_fn_path, 'r', encoding='utf-8') as f:
+                source_filename = f.read().strip()
+            stem = Path(source_filename).stem
+            output_filename = f"{stem}_invoice.html"
+        except Exception:
+            output_filename = f"{session_id}_invoice.html"
+    else:
+        output_filename = f"{session_id}_invoice.html"
     output_file = invoice_html_dir / output_filename
     
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -2176,10 +2188,12 @@ def _build_merged_summary(temp_dir: str, session_id: str, invoice_data: dict):
     """
     Build summary rows from the current invoice data, then overlay any cells
     that the user has previously manually edited and saved.
+    Uses per-invoice template and mapping: summary_template_{session_id}.csv,
+    summary_mapping_{session_id}.json.
     Returns (columns, rows, edited_cells) or None when no template/mapping.
     """
-    template_path = os.path.join(temp_dir, "summary_template.csv")
-    mapping_path = os.path.join(temp_dir, "summary_mapping.json")
+    template_path = os.path.join(temp_dir, f"summary_template_{session_id}.csv")
+    mapping_path = os.path.join(temp_dir, f"summary_mapping_{session_id}.json")
     source_csv_path = os.path.join(temp_dir, f"{session_id}_source.csv")
 
     if not os.path.isfile(template_path) or not os.path.isfile(mapping_path):
@@ -2255,12 +2269,14 @@ async def get_summary_calculated_fields(current_user: str = Depends(require_auth
 @app.post("/api/upload-summary-template")
 async def upload_summary_template(
     batch_session_id: str = Form(...),
+    invoice_session_id: str = Form(...),
     file: UploadFile = File(...),
     current_user: str = Depends(require_auth),
 ):
     """
-    Upload the empty/template CSV for the summary sheet. Saves it in the batch session
-    and returns the column headers so the client can show the column-mapping modal.
+    Upload the empty/template CSV for the summary sheet for a specific invoice.
+    Saves it in the batch session and returns the column headers so the client
+    can show the column-mapping modal.
     """
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
@@ -2271,12 +2287,11 @@ async def upload_summary_template(
             break
     if not batch_dir:
         raise HTTPException(status_code=404, detail="Batch session not found")
-    path = os.path.join(batch_dir, "summary_template.csv")
+    path = os.path.join(batch_dir, f"summary_template_{invoice_session_id}.csv")
     content = await file.read()
     with open(path, "wb") as f:
         f.write(content)
-    # Store original filename for display in column-mapping modal
-    name_path = os.path.join(batch_dir, "summary_template_filename.txt")
+    name_path = os.path.join(batch_dir, f"summary_template_filename_{invoice_session_id}.txt")
     with open(name_path, "w", encoding="utf-8") as f:
         f.write(file.filename or "summary_template.csv")
     try:
@@ -2290,12 +2305,13 @@ async def upload_summary_template(
 @app.post("/api/set-summary-mapping")
 async def set_summary_mapping(
     batch_session_id: str = Form(...),
+    invoice_session_id: str = Form(...),
     mapping: str = Form(...),
     current_user: str = Depends(require_auth),
 ):
     """
-    Save the column mapping: summary (backing) sheet column name -> source CSV column name.
-    mapping is JSON: { "Summary Column A": "Source CSV Column Name", ... }
+    Save the column mapping for a specific invoice: summary (backing) sheet column
+    name -> source CSV column name. mapping is JSON: { "Summary Column A": "Source CSV Column Name", ... }
     """
     batch_dir = None
     for root, dirs, files in os.walk("temp"):
@@ -2308,18 +2324,19 @@ async def set_summary_mapping(
         mapping_obj = json.loads(mapping)
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid mapping JSON: {e}")
-    path = os.path.join(batch_dir, "summary_mapping.json")
+    path = os.path.join(batch_dir, f"summary_mapping_{invoice_session_id}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(mapping_obj, f, indent=2)
     return JSONResponse({"ok": True})
 
 
-@app.get("/api/summary-template-status/{batch_session_id}")
+@app.get("/api/summary-template-status/{batch_session_id}/{invoice_session_id}")
 async def summary_template_status(
     batch_session_id: str,
+    invoice_session_id: str,
     current_user: str = Depends(require_auth),
 ):
-    """Return whether a summary template and mapping exist for this batch, and template columns if any."""
+    """Return whether a summary template and mapping exist for this invoice, and template columns if any."""
     batch_dir = None
     for root, dirs, files in os.walk("temp"):
         if f"batch_{batch_session_id}" in root:
@@ -2327,9 +2344,9 @@ async def summary_template_status(
             break
     if not batch_dir:
         raise HTTPException(status_code=404, detail="Batch session not found")
-    template_path = os.path.join(batch_dir, "summary_template.csv")
-    mapping_path = os.path.join(batch_dir, "summary_mapping.json")
-    filename_path = os.path.join(batch_dir, "summary_template_filename.txt")
+    template_path = os.path.join(batch_dir, f"summary_template_{invoice_session_id}.csv")
+    mapping_path = os.path.join(batch_dir, f"summary_mapping_{invoice_session_id}.json")
+    filename_path = os.path.join(batch_dir, f"summary_template_filename_{invoice_session_id}.txt")
     has_template = os.path.isfile(template_path)
     has_mapping = os.path.isfile(mapping_path)
     columns = []
@@ -2406,7 +2423,7 @@ async def generate_summary_data(
 
         summary_columns, rows, edited_cells = result
 
-        tpl_name_path = os.path.join(temp_dir, "summary_template_filename.txt")
+        tpl_name_path = os.path.join(temp_dir, f"summary_template_filename_{session_id}.txt")
         template_filename = None
         if os.path.isfile(tpl_name_path):
             with open(tpl_name_path, "r", encoding="utf-8") as fn:
@@ -2556,43 +2573,33 @@ async def download_all_invoices(
         # Create ZIP file
         zip_path = os.path.join(batch_dir, f"invoices_{batch_session_id}.zip")
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for html_file in html_files:
+            for idx, html_file in enumerate(html_files):
                 zipf.write(html_file, Path(html_file).name)
-            
-            # If summary template + mapping exist, fill from each invoice's line items + source CSV (same as PDF rows)
-            template_path = os.path.join(batch_dir, "summary_template.csv")
-            mapping_path = os.path.join(batch_dir, "summary_mapping.json")
-            if os.path.isfile(template_path) and os.path.isfile(mapping_path):
-                with open(mapping_path, "r", encoding="utf-8") as f:
-                    mapping = json.load(f)
-                template_df = pd.read_csv(template_path)
-                summary_columns = list(template_df.columns)
-                all_rows = []
-                for invoice_data_path in invoice_files:
-                    session_id = Path(invoice_data_path).stem.replace("_invoice_data", "")
-                    source_csv_path = os.path.join(batch_dir, f"{session_id}_source.csv")
+                invoice_data_path = invoice_files[idx]
+                session_id = Path(invoice_data_path).stem.replace("_invoice_data", "")
+                template_path = os.path.join(batch_dir, f"summary_template_{session_id}.csv")
+                mapping_path = os.path.join(batch_dir, f"summary_mapping_{session_id}.json")
+                if os.path.isfile(template_path) and os.path.isfile(mapping_path):
                     with open(invoice_data_path, "rb") as f:
                         invoice_data = pickle.load(f)
-                    _ensure_line_item_charges(invoice_data)
-                    if not os.path.isfile(source_csv_path):
-                        source_df = pd.DataFrame()
-                    else:
-                        source_df = pd.read_csv(source_csv_path)
-                    rows = _build_summary_rows_from_line_items(
-                        invoice_data, source_df, summary_columns, mapping
-                    )
-                    all_rows.extend(rows)
-                if all_rows:
-                    out_df = pd.DataFrame(all_rows, columns=summary_columns)
-                    summary_csv_path = os.path.join(batch_dir, "summary_filled.csv")
-                    out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
-                    tpl_name_path = os.path.join(batch_dir, "summary_template_filename.txt")
-                    if os.path.isfile(tpl_name_path):
-                        with open(tpl_name_path, "r", encoding="utf-8") as fn:
-                            tpl_stem = Path(fn.read().strip()).stem
-                    else:
-                        tpl_stem = "summary"
-                    zipf.write(summary_csv_path, f"{tpl_stem}_backing_data.csv")
+                    result = _build_merged_summary(batch_dir, session_id, invoice_data)
+                    if result is not None:
+                        summary_columns, merged_rows, _ = result
+                        if merged_rows:
+                            out_df = pd.DataFrame(merged_rows, columns=summary_columns)
+                            summary_csv_path = os.path.join(batch_dir, f"summary_single_{session_id}_zip.csv")
+                            out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
+                            src_fn_path = os.path.join(batch_dir, f"{session_id}_source_filename.txt")
+                            if os.path.isfile(src_fn_path):
+                                with open(src_fn_path, "r", encoding="utf-8") as fn:
+                                    invoice_stem = Path(fn.read().strip()).stem
+                            else:
+                                invoice_stem = session_id
+                            zipf.write(summary_csv_path, f"{invoice_stem}_backing_data.csv")
+                            try:
+                                os.remove(summary_csv_path)
+                            except OSError:
+                                pass
         
         return FileResponse(
             zip_path,

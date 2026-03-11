@@ -238,6 +238,32 @@
             if (lastRow) lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
 
+        // Arrow-key navigation between cells
+        document.addEventListener('keydown', (e) => {
+            const input = e.target;
+            if (!input.classList || !input.classList.contains('cell-input')) return;
+            const key = e.key;
+            if (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+
+            const row = parseInt(input.dataset.row, 10);
+            const col = parseInt(input.dataset.col, 10);
+            let newRow = row;
+            let newCol = col;
+
+            if (key === 'ArrowUp') newRow = Math.max(0, row - 1);
+            else if (key === 'ArrowDown') newRow = Math.min(rows.length - 1, row + 1);
+            else if (key === 'ArrowLeft') newCol = Math.max(0, col - 1);
+            else if (key === 'ArrowRight') newCol = Math.min(columns.length - 1, col + 1);
+
+            if (newRow === row && newCol === col) return;
+
+            const next = document.querySelector(`.cell-input[data-row="${newRow}"][data-col="${newCol}"]`);
+            if (next) {
+                e.preventDefault();
+                next.focus();
+            }
+        });
+
         // Track per-cell edits
         document.addEventListener('input', (e) => {
             if (e.target.classList.contains('cell-input')) {
