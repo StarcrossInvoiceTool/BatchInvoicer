@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 import os
+import math
 import zipfile
 import tempfile
 import shutil
@@ -1587,18 +1588,29 @@ async def get_conversion_files(
             # Create individual session ID for this invoice
             invoice_session_id = os.urandom(16).hex()
             invoice_data_path = os.path.join(batch_temp_dir, f"{invoice_session_id}_invoice_data.pkl")
+            source_csv_path = os.path.join(batch_temp_dir, f"{invoice_session_id}_source.csv")
             
             with open(invoice_data_path, 'wb') as f:
                 pickle.dump(invoice_data, f)
             
+            # Store original source CSV so we can fill summary sheet from it (column mapping)
+            shutil.copy2(csv_path, source_csv_path)
+            csv_filename = os.path.basename(csv_path)
+            with open(os.path.join(batch_temp_dir, f"{invoice_session_id}_source_filename.txt"), "w", encoding="utf-8") as fn:
+                fn.write(csv_filename)
+            try:
+                source_headers = list(pd.read_csv(source_csv_path, nrows=0).columns)
+            except Exception:
+                source_headers = list(df.columns)
+            
             # Serialize invoice_data for JSON response
             serialized_invoice_data = serialize_invoice_data(invoice_data)
             
-            csv_filename = os.path.basename(csv_path)
             invoices.append({
                 'session_id': invoice_session_id,
                 'filename': csv_filename,
                 'invoice_data': serialized_invoice_data,
+                'source_headers': source_headers,
                 'index': idx
             })
             print(f"[DEBUG] Successfully processed {csv_filename}")
@@ -1783,12 +1795,22 @@ async def upload_csv(files: list[UploadFile] = File(...), current_user: str = De
             # Create individual session ID for this invoice
             invoice_session_id = os.urandom(16).hex()
             invoice_data_path = os.path.join(batch_temp_dir, f"{invoice_session_id}_invoice_data.pkl")
+            source_csv_path = os.path.join(batch_temp_dir, f"{invoice_session_id}_source.csv")
             try:
                 with open(invoice_data_path, 'wb') as f:
                     pickle.dump(invoice_data, f)
             except Exception as e:
                 print(f"[ERROR] Failed to save invoice data for {file.filename}: {e}")
                 raise HTTPException(status_code=500, detail=f"Error saving invoice data: {str(e)}")
+            
+            # Store original source CSV for summary sheet column mapping
+            try:
+                shutil.copy2(csv_path, source_csv_path)
+                with open(os.path.join(batch_temp_dir, f"{invoice_session_id}_source_filename.txt"), "w", encoding="utf-8") as fn:
+                    fn.write(file.filename)
+                source_headers = list(pd.read_csv(source_csv_path, nrows=0).columns)
+            except Exception:
+                source_headers = list(df.columns)
             
             # Serialize invoice_data for JSON response
             try:
@@ -1802,6 +1824,7 @@ async def upload_csv(files: list[UploadFile] = File(...), current_user: str = De
                 'session_id': invoice_session_id,
                 'filename': file.filename,
                 'invoice_data': serialized_invoice_data,
+                'source_headers': source_headers,
                 'index': idx
             })
         
@@ -1892,7 +1915,58 @@ async def update_invoice(
             template_name=None
         )
         
-        # Return the HTML file
+        # If summary template + mapping exist, build filled summary (line-item rows + calculated values) and return ZIP
+        template_path = os.path.join(temp_dir, "summary_template.csv")
+        mapping_path = os.path.join(temp_dir, "summary_mapping.json")
+        source_csv_path = os.path.join(temp_dir, f"{session_id}_source.csv")
+        if os.path.isfile(template_path) and os.path.isfile(mapping_path) and os.path.isfile(source_csv_path):
+            try:
+                with open(mapping_path, "r", encoding="utf-8") as f:
+                    mapping = json.load(f)
+                print(f"[SUMMARY DEBUG] Mapping: {mapping}")
+                template_df = pd.read_csv(template_path)
+                summary_columns = list(template_df.columns)
+                source_df = pd.read_csv(source_csv_path)
+
+                items = (invoice_data.get("invoice") or {}).get("items") or []
+                if items:
+                    sample = items[0]
+                    print(f"[SUMMARY DEBUG] First item keys: {list(sample.keys())}")
+                    print(f"[SUMMARY DEBUG] First item job_pounds={sample.get('job_pounds')!r}, miles_pounds={sample.get('miles_pounds')!r}, total={sample.get('total')!r}")
+                else:
+                    print("[SUMMARY DEBUG] No items in invoice_data!")
+
+                rows = _build_summary_rows_from_line_items(
+                    invoice_data, source_df, summary_columns, mapping
+                )
+                print(f"[SUMMARY DEBUG] Built {len(rows)} summary rows")
+                if rows:
+                    print(f"[SUMMARY DEBUG] First row: {rows[0]}")
+                    out_df = pd.DataFrame(rows, columns=summary_columns)
+                    summary_csv_path = os.path.join(temp_dir, f"summary_single_{session_id}.csv")
+                    out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
+                    src_fn_path = os.path.join(temp_dir, f"{session_id}_source_filename.txt")
+                    if os.path.isfile(src_fn_path):
+                        with open(src_fn_path, "r", encoding="utf-8") as fn:
+                            invoice_stem = Path(fn.read().strip()).stem
+                    else:
+                        invoice_stem = Path(html_file).stem
+                    backing_name = f"{invoice_stem}_backing_data.csv"
+                    zip_path = os.path.join(temp_dir, f"invoice_and_summary_{session_id}.zip")
+                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                        zipf.write(html_file, Path(html_file).name)
+                        zipf.write(summary_csv_path, backing_name)
+                    return FileResponse(
+                        zip_path,
+                        media_type="application/zip",
+                        filename=f"invoice_and_summary_{Path(html_file).stem}.zip"
+                    )
+            except Exception as summary_err:
+                print(f"[SUMMARY ERROR] Summary build failed: {summary_err}")
+                import traceback
+                traceback.print_exc()
+        
+        # Return the HTML file only
         return FileResponse(
             html_file,
             media_type="text/html",
@@ -1940,10 +2014,330 @@ async def download_invoice(session_id: str, current_user: str = Depends(require_
         raise HTTPException(status_code=500, detail=f"Error downloading invoice: {str(e)}")
 
 
-@app.post("/api/download-all-invoices")
-async def download_all_invoices(batch_session_id: str = Form(...), current_user: str = Depends(require_auth)):
+def _parse_miles(miles_val) -> float:
+    """Parse miles from item (string or number); return 0 if invalid."""
+    if miles_val is None:
+        return 0.0
+    s = str(miles_val).strip().lower()
+    if s in ("", "nan", "none"):
+        return 0.0
+    try:
+        return float(miles_val)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _ensure_line_item_charges(invoice_data: dict) -> None:
     """
-    Download all invoices from a batch session as a ZIP file
+    Fallback: fill EMPTY line-item charges from pricing config.
+    Only used when loading from pickle (e.g. download-all) where the UI
+    may not have saved values yet.  Never overwrites non-empty values.
+    """
+    pricing = invoice_data.get("pricing") or {}
+    job_price = float(pricing.get("job_price_flat") or 0)
+    mileage_included = float(pricing.get("mileage_included") or 0)
+    mileage_charge = float(pricing.get("mileage_charge") or 0)
+
+    items = (invoice_data.get("invoice") or {}).get("items") or []
+    for item in items:
+        if not str(item.get("job_pounds") or "").strip():
+            item["job_pounds"] = f"{job_price:.2f}"
+
+        if not str(item.get("miles_pounds") or "").strip():
+            miles_val = _parse_miles(item.get("miles"))
+            if miles_val > mileage_included and mileage_charge:
+                extra = math.ceil(miles_val - mileage_included)
+                item["miles_pounds"] = f"{extra * mileage_charge:.2f}"
+            else:
+                item["miles_pounds"] = "0.00"
+
+        if not str(item.get("total") or "").strip():
+            wait = float(item.get("wait_pounds") or 0)
+            miles_p = float(item.get("miles_pounds") or 0)
+            job_p = float(item.get("job_pounds") or 0)
+            item["total"] = f"{wait + miles_p + job_p:.2f}"
+
+
+def _get_calculated_value(invoice_data: dict, item: dict, index: int, field_id: str):
+    """Get value for a calculated/synthetic field from line item or invoice data."""
+    # Per-line fields
+    if field_id == "_date":
+        return str(item.get("date") or "").strip()
+    if field_id == "_our_ref":
+        return str(item.get("our_ref") or "").strip()
+    if field_id == "_client_ref":
+        return str(item.get("client_ref") or "").strip()
+    if field_id == "_mob":
+        return str(item.get("mob") or "").strip()
+    if field_id == "_miles":
+        return str(item.get("miles") or "").strip()
+    if field_id == "_wait_pounds":
+        return str(item.get("wait_pounds") or "").strip()
+    if field_id == "_miles_pounds":
+        return str(item.get("miles_pounds") or "").strip()
+    if field_id == "_job_pounds":
+        return str(item.get("job_pounds") or "").strip()
+    if field_id == "_line_total":
+        return str(item.get("total") or "").strip()
+    if field_id == "_wait_notes":
+        return str(item.get("wait_notes") or "").strip()
+    if field_id == "_from_location":
+        return str(item.get("from_location") or "").strip()
+    if field_id == "_to_location":
+        return str(item.get("to_location") or "").strip()
+    if field_id == "_status":
+        return str(item.get("status") or "").strip()
+    if field_id == "_directions":
+        return str(item.get("directions") or "").strip()
+    if field_id == "_contract_hospital":
+        return str(item.get("contract_hospital") or "").strip()
+    if field_id == "_booked_by":
+        return str(item.get("booked_by") or "").strip()
+    if field_id == "_nhs_number":
+        return str(item.get("nhs_number") or "").strip()
+    # Invoice-level (same for all rows)
+    patient = invoice_data.get("patient") or {}
+    inv = invoice_data.get("invoice") or {}
+    fin = invoice_data.get("financial") or {}
+    if field_id == "_client_name":
+        return str(patient.get("name") or "").strip()
+    if field_id == "_client_address":
+        return str(patient.get("address") or "").strip()
+    if field_id == "_client_postcode":
+        return str(patient.get("postcode") or "").strip()
+    if field_id == "_invoice_number":
+        return str(inv.get("number") or "").strip()
+    if field_id == "_invoice_date":
+        return str(inv.get("date") or "").strip()
+    if field_id == "_subtotal":
+        return str(fin.get("subtotal") or "").strip()
+    if field_id == "_vat_amount":
+        return str(fin.get("vat_amount") or "").strip()
+    if field_id == "_invoice_total":
+        return str(fin.get("total") or "").strip()
+    if field_id == "_account_ref":
+        return str(inv.get("account_ref") or "").strip()
+    if field_id == "_ref":
+        return str(inv.get("ref") or "").strip()
+    if field_id == "_po_number":
+        return str(inv.get("po_number") or "").strip()
+    if field_id == "_payment_terms":
+        return str(inv.get("payment_terms") or "").strip()
+    if field_id == "_period":
+        return str(inv.get("period") or "").strip()
+    return ""
+
+
+# Template column name → invoice item key for charge values.
+# After building each row from the mapping, these are force-written
+# so the user's UI-calculated charges always land in the right place.
+CHARGE_COLUMN_MAP = {
+    "fixed charge":          "job_pounds",
+    "mileage charge":        "miles_pounds",
+    "waiting time charge":   "wait_pounds",
+    "total charge":          "total",
+}
+
+
+def _build_summary_rows_from_line_items(
+    invoice_data: dict,
+    source_df: pd.DataFrame,
+    summary_columns: list,
+    mapping: dict,
+) -> list:
+    """
+    Build summary sheet rows from invoice line items plus source CSV.
+    Mapped columns pull from the source CSV.  Charge columns (Fixed Charge,
+    Mileage Charge, Waiting Time Charge, Total Charge) are always written
+    from the invoice item's UI-calculated values, overriding any mapping.
+    """
+    items = (invoice_data.get("invoice") or {}).get("items") or []
+    if not items:
+        return []
+
+    # Pre-compute which column indices correspond to charge columns
+    charge_indices = {}
+    for col_idx, col_name in enumerate(summary_columns):
+        item_key = CHARGE_COLUMN_MAP.get(col_name.strip().lower())
+        if item_key:
+            charge_indices[col_idx] = item_key
+
+    rows = []
+    for i, item in enumerate(items):
+        src_idx = item.get("_source_row_index", i)
+        source_row = source_df.iloc[src_idx] if src_idx < len(source_df) else None
+        row = []
+        for col_idx, sum_col in enumerate(summary_columns):
+            # Charge columns always come from the invoice item
+            if col_idx in charge_indices:
+                val = str(item.get(charge_indices[col_idx]) or "").strip()
+                row.append(val)
+                continue
+            src_or_calc = mapping.get(sum_col)
+            if not src_or_calc:
+                row.append("")
+                continue
+            if isinstance(src_or_calc, str) and src_or_calc.startswith("_"):
+                row.append(_get_calculated_value(invoice_data, item, i, src_or_calc))
+                continue
+            if source_row is not None and src_or_calc in source_df.columns:
+                val = source_row.get(src_or_calc)
+                row.append("" if pd.isna(val) else str(val).strip())
+            else:
+                row.append("")
+        rows.append(row)
+    return rows
+
+
+# Calculated fields for summary mapping (exposed to frontend for dropdown)
+SUMMARY_CALCULATED_FIELDS = [
+    {"id": "_date", "label": "Date (calculated)"},
+    {"id": "_our_ref", "label": "Our Ref (calculated)"},
+    {"id": "_client_ref", "label": "Client Ref (calculated)"},
+    {"id": "_mob", "label": "MOB (calculated)"},
+    {"id": "_miles", "label": "Miles (calculated)"},
+    {"id": "_wait_pounds", "label": "Wait £ (calculated)"},
+    {"id": "_miles_pounds", "label": "Miles £ (calculated)"},
+    {"id": "_job_pounds", "label": "Job £ (calculated)"},
+    {"id": "_line_total", "label": "Line Total (calculated)"},
+    {"id": "_wait_notes", "label": "Wait notes (calculated)"},
+    {"id": "_from_location", "label": "From (calculated)"},
+    {"id": "_to_location", "label": "To (calculated)"},
+    {"id": "_client_name", "label": "Client Name (calculated)"},
+    {"id": "_client_address", "label": "Client Address (calculated)"},
+    {"id": "_client_postcode", "label": "Client Postcode (calculated)"},
+    {"id": "_invoice_number", "label": "Invoice Number (calculated)"},
+    {"id": "_invoice_date", "label": "Invoice Date (calculated)"},
+    {"id": "_subtotal", "label": "Subtotal (calculated)"},
+    {"id": "_vat_amount", "label": "VAT (calculated)"},
+    {"id": "_invoice_total", "label": "Invoice Total (calculated)"},
+]
+
+
+@app.get("/api/summary-calculated-fields")
+async def get_summary_calculated_fields(current_user: str = Depends(require_auth)):
+    """Return calculated/synthetic fields that can be mapped to summary columns (from UI/PDF)."""
+    return JSONResponse({"fields": SUMMARY_CALCULATED_FIELDS})
+
+
+@app.post("/api/upload-summary-template")
+async def upload_summary_template(
+    batch_session_id: str = Form(...),
+    file: UploadFile = File(...),
+    current_user: str = Depends(require_auth),
+):
+    """
+    Upload the empty/template CSV for the summary sheet. Saves it in the batch session
+    and returns the column headers so the client can show the column-mapping modal.
+    """
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+    batch_dir = None
+    for root, dirs, files in os.walk("temp"):
+        if f"batch_{batch_session_id}" in root:
+            batch_dir = root
+            break
+    if not batch_dir:
+        raise HTTPException(status_code=404, detail="Batch session not found")
+    path = os.path.join(batch_dir, "summary_template.csv")
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    # Store original filename for display in column-mapping modal
+    name_path = os.path.join(batch_dir, "summary_template_filename.txt")
+    with open(name_path, "w", encoding="utf-8") as f:
+        f.write(file.filename or "summary_template.csv")
+    try:
+        df = pd.read_csv(path, nrows=0)
+        columns = list(df.columns)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid CSV: {str(e)}")
+    return JSONResponse({"columns": columns, "template_filename": file.filename})
+
+
+@app.post("/api/set-summary-mapping")
+async def set_summary_mapping(
+    batch_session_id: str = Form(...),
+    mapping: str = Form(...),
+    current_user: str = Depends(require_auth),
+):
+    """
+    Save the column mapping: summary (backing) sheet column name -> source CSV column name.
+    mapping is JSON: { "Summary Column A": "Source CSV Column Name", ... }
+    """
+    batch_dir = None
+    for root, dirs, files in os.walk("temp"):
+        if f"batch_{batch_session_id}" in root:
+            batch_dir = root
+            break
+    if not batch_dir:
+        raise HTTPException(status_code=404, detail="Batch session not found")
+    try:
+        mapping_obj = json.loads(mapping)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid mapping JSON: {e}")
+    path = os.path.join(batch_dir, "summary_mapping.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(mapping_obj, f, indent=2)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/summary-template-status/{batch_session_id}")
+async def summary_template_status(
+    batch_session_id: str,
+    current_user: str = Depends(require_auth),
+):
+    """Return whether a summary template and mapping exist for this batch, and template columns if any."""
+    batch_dir = None
+    for root, dirs, files in os.walk("temp"):
+        if f"batch_{batch_session_id}" in root:
+            batch_dir = root
+            break
+    if not batch_dir:
+        raise HTTPException(status_code=404, detail="Batch session not found")
+    template_path = os.path.join(batch_dir, "summary_template.csv")
+    mapping_path = os.path.join(batch_dir, "summary_mapping.json")
+    filename_path = os.path.join(batch_dir, "summary_template_filename.txt")
+    has_template = os.path.isfile(template_path)
+    has_mapping = os.path.isfile(mapping_path)
+    columns = []
+    template_filename = None
+    if has_template:
+        try:
+            df = pd.read_csv(template_path, nrows=0)
+            columns = list(df.columns)
+        except Exception:
+            pass
+        if os.path.isfile(filename_path):
+            try:
+                with open(filename_path, "r", encoding="utf-8") as f:
+                    template_filename = f.read().strip()
+            except Exception:
+                pass
+    mapping_obj = None
+    if has_mapping:
+        try:
+            with open(mapping_path, "r", encoding="utf-8") as f:
+                mapping_obj = json.load(f)
+        except Exception:
+            pass
+    return JSONResponse({
+        "has_template": has_template,
+        "has_mapping": has_mapping,
+        "columns": columns,
+        "mapping": mapping_obj or {},
+        "template_filename": template_filename,
+    })
+
+
+@app.post("/api/download-all-invoices")
+async def download_all_invoices(
+    batch_session_id: str = Form(...),
+    current_user: str = Depends(require_auth),
+):
+    """
+    Download all invoices from a batch session as a ZIP file.
+    If a summary template and mapping exist, a filled summary CSV (one row per invoice) is included.
     """
     try:
         # Find all invoices in the batch session
@@ -1975,6 +2369,41 @@ async def download_all_invoices(batch_session_id: str = Form(...), current_user:
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for html_file in html_files:
                 zipf.write(html_file, Path(html_file).name)
+            
+            # If summary template + mapping exist, fill from each invoice's line items + source CSV (same as PDF rows)
+            template_path = os.path.join(batch_dir, "summary_template.csv")
+            mapping_path = os.path.join(batch_dir, "summary_mapping.json")
+            if os.path.isfile(template_path) and os.path.isfile(mapping_path):
+                with open(mapping_path, "r", encoding="utf-8") as f:
+                    mapping = json.load(f)
+                template_df = pd.read_csv(template_path)
+                summary_columns = list(template_df.columns)
+                all_rows = []
+                for invoice_data_path in invoice_files:
+                    session_id = Path(invoice_data_path).stem.replace("_invoice_data", "")
+                    source_csv_path = os.path.join(batch_dir, f"{session_id}_source.csv")
+                    with open(invoice_data_path, "rb") as f:
+                        invoice_data = pickle.load(f)
+                    _ensure_line_item_charges(invoice_data)
+                    if not os.path.isfile(source_csv_path):
+                        source_df = pd.DataFrame()
+                    else:
+                        source_df = pd.read_csv(source_csv_path)
+                    rows = _build_summary_rows_from_line_items(
+                        invoice_data, source_df, summary_columns, mapping
+                    )
+                    all_rows.extend(rows)
+                if all_rows:
+                    out_df = pd.DataFrame(all_rows, columns=summary_columns)
+                    summary_csv_path = os.path.join(batch_dir, "summary_filled.csv")
+                    out_df.to_csv(summary_csv_path, index=False, encoding="utf-8")
+                    tpl_name_path = os.path.join(batch_dir, "summary_template_filename.txt")
+                    if os.path.isfile(tpl_name_path):
+                        with open(tpl_name_path, "r", encoding="utf-8") as fn:
+                            tpl_stem = Path(fn.read().strip()).stem
+                    else:
+                        tpl_stem = "summary"
+                    zipf.write(summary_csv_path, f"{tpl_stem}_backing_data.csv")
         
         return FileResponse(
             zip_path,

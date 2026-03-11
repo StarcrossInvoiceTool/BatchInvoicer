@@ -57,6 +57,22 @@
 
             <!-- Invoice List Section (hidden initially) -->
             <div id="invoice-list-section" class="hidden bg-white rounded-lg shadow-2xl p-8 mb-6">
+                <!-- Summary template CSV (empty sheet to fill with amounts, sent with PDF) -->
+                <div id="summary-template-section" class="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Summary sheet (optional)</h3>
+                    <p class="text-sm text-gray-600 mb-3">Upload an empty CSV (e.g. adhoc_backingdata.csv) with column headers. Match each of its columns to a column from the <strong>currently selected</strong> CSV sheet (e.g. adhoc.csv). Data from all CSV sheets will be copied into the summary according to this mapping; the filled sheet is included in the ZIP.</p>
+                    <div id="summary-template-upload-wrap" class="flex flex-wrap items-center gap-3">
+                        <input type="file" id="summary-template-file" accept=".csv" class="hidden">
+                        <button type="button" id="summary-template-upload-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                            Upload summary template CSV
+                        </button>
+                        <span id="summary-template-status" class="text-sm text-gray-600 hidden"></span>
+                        <button type="button" id="summary-template-change-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                            Change template / mapping
+                        </button>
+                    </div>
+                </div>
+
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold text-gray-800">Invoices</h2>
                     <button 
@@ -68,6 +84,35 @@
                 </div>
                 <div id="invoice-list" class="space-y-2">
                     <!-- Invoice list items will be populated here -->
+                </div>
+            </div>
+
+            <!-- Column mapping modal (for summary template) -->
+            <div id="column-mapping-modal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="column-mapping-modal-backdrop"></div>
+                    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2" id="modal-title">Match columns</h3>
+                            <p class="text-sm text-gray-600 mb-3" id="column-mapping-description">For each column in your summary sheet (mapping onto), choose which column from your source CSV (mapping from) to copy data from.</p>
+                            <div id="column-mapping-header" class="grid grid-cols-2 gap-3 mb-2 pb-2 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <span id="column-mapping-label-onto">Summary sheet (mapping onto)</span>
+                                <span id="column-mapping-label-from">Source CSV (mapping from)</span>
+                            </div>
+                            <div id="column-mapping-list" class="space-y-3 max-h-96 overflow-y-auto">
+                                <!-- Rows: template column -> dropdown source field -->
+                            </div>
+                            <p id="column-mapping-source-name" class="mt-3 text-xs text-gray-500 hidden"></p>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                            <button type="button" id="column-mapping-save-btn" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                                Save mapping
+                            </button>
+                            <button type="button" id="column-mapping-cancel-btn" class="mt-2 sm:mt-0 w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -413,6 +458,7 @@
         let batchSessionId = null;
         let allInvoices = [];
         let currentInvoiceIndex = 0;
+        let summaryTemplateColumns = [];  // columns from last uploaded template (for modal)
 
         // Handle back to previous page
         const backToPreviousBtn = document.getElementById('back-to-previous-btn');
@@ -491,6 +537,7 @@
                     document.getElementById('loading').classList.add('hidden');
                     document.getElementById('invoice-list-section').classList.remove('hidden');
                     document.getElementById('editing-section').classList.remove('hidden');
+                    refreshSummaryTemplateStatus();
                     
                 } catch (error) {
                     console.error('Error loading conversion files:', error);
@@ -549,12 +596,161 @@
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('invoice-list-section').classList.remove('hidden');
                 document.getElementById('editing-section').classList.remove('hidden');
+                refreshSummaryTemplateStatus();
                 
             } catch (error) {
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('upload-section').classList.remove('hidden');
                 showError(error.message);
             }
+        });
+
+        async function refreshSummaryTemplateStatus() {
+            if (!batchSessionId) return;
+            try {
+                const r = await fetch(`/api/summary-template-status/${batchSessionId}`);
+                if (!r.ok) return;
+                const data = await r.json();
+                const statusEl = document.getElementById('summary-template-status');
+                const changeBtn = document.getElementById('summary-template-change-btn');
+                if (data.has_template && data.has_mapping) {
+                    statusEl.textContent = 'Summary template and mapping set. Filled sheet will be included in ZIP.';
+                    statusEl.classList.remove('hidden');
+                    changeBtn.classList.remove('hidden');
+                } else if (data.has_template) {
+                    statusEl.textContent = 'Template uploaded. Open "Change template / mapping" to set column mapping.';
+                    statusEl.classList.remove('hidden');
+                    changeBtn.classList.remove('hidden');
+                } else {
+                    statusEl.classList.add('hidden');
+                    changeBtn.classList.add('hidden');
+                }
+            } catch (e) {
+                console.error('Summary template status:', e);
+            }
+        }
+
+        let summaryCalculatedFields = [];
+        async function openColumnMappingModal(columns, sourceHeaders, currentMapping, sourceFilename, summaryTemplateFilename) {
+            summaryTemplateColumns = columns;
+            if (!sourceHeaders || sourceHeaders.length === 0) {
+                showError('No CSV headers available for the selected invoice. Make sure you have selected the invoice whose CSV you want to map from.');
+                return;
+            }
+            if (summaryCalculatedFields.length === 0) {
+                try {
+                    const r = await fetch('/api/summary-calculated-fields');
+                    if (r.ok) summaryCalculatedFields = (await r.json()).fields;
+                } catch (e) {}
+            }
+            const ontoName = summaryTemplateFilename || 'Summary sheet';
+            const fromName = sourceFilename || 'Source CSV';
+            document.getElementById('column-mapping-label-onto').textContent = ontoName + ' (mapping onto)';
+            document.getElementById('column-mapping-label-from').textContent = fromName + ' (mapping from)';
+            document.getElementById('column-mapping-description').innerHTML =
+                'For each column in <strong>' + ontoName + '</strong> (mapping onto), choose a column from <strong>' + fromName + '</strong> (source CSV) or a <strong>calculated field</strong> from the invoice/UI (e.g. Line Total, Wait £).';
+            const listEl = document.getElementById('column-mapping-list');
+            listEl.innerHTML = '';
+            const emptyOpt = '<option value="">— Don\'t map —</option>';
+            const escapeAttr = (s) => String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            summaryTemplateColumns.forEach(col => {
+                let selected = '';
+                if (currentMapping && currentMapping[col] !== undefined && currentMapping[col] !== '') {
+                    selected = currentMapping[col];
+                } else {
+                    if (sourceHeaders.indexOf(col) !== -1) selected = col;
+                }
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-2 gap-3 items-center';
+                const optsWithSelected = (sourceHeaders.map(h => `<option value="${escapeAttr(h)}" ${h === selected ? 'selected' : ''}>${escapeAttr(h)}</option>`).join('')) +
+                    (summaryCalculatedFields.length ? '<option disabled>—— Calculated ——</option>' + summaryCalculatedFields.map(f => `<option value="${escapeAttr(f.id)}" ${f.id === selected ? 'selected' : ''}>${escapeAttr(f.label)}</option>`).join('') : '');
+                row.innerHTML = `
+                    <span class="text-sm font-medium text-gray-700 min-w-0 truncate" title="${escapeAttr(col)}">${escapeAttr(col)}</span>
+                    <select class="column-mapping-select border border-gray-300 rounded px-3 py-2 text-sm" data-column="${escapeAttr(col)}">
+                        ${emptyOpt}
+                        ${optsWithSelected}
+                    </select>
+                `;
+                listEl.appendChild(row);
+            });
+            const sourceNameEl = document.getElementById('column-mapping-source-name');
+            if (sourceFilename) {
+                sourceNameEl.textContent = 'Source CSV (mapping from): ' + sourceFilename;
+                sourceNameEl.classList.remove('hidden');
+            } else {
+                sourceNameEl.classList.add('hidden');
+            }
+            document.getElementById('column-mapping-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('summary-template-upload-btn').addEventListener('click', () => {
+            document.getElementById('summary-template-file').click();
+        });
+        document.getElementById('summary-template-change-btn').addEventListener('click', async () => {
+            if (!batchSessionId || !allInvoices.length) return;
+            const inv = allInvoices[currentInvoiceIndex];
+            const sourceHeaders = inv && inv.source_headers;
+            try {
+                const statusRes = await fetch(`/api/summary-template-status/${batchSessionId}`);
+                if (!statusRes.ok) return;
+                const status = await statusRes.json();
+                if (!status.has_template || !status.columns || status.columns.length === 0) {
+                    document.getElementById('summary-template-file').click();
+                    return;
+                }
+                await openColumnMappingModal(status.columns, sourceHeaders, status.mapping || {}, inv.filename, status.template_filename);
+            } catch (e) {
+                showError(e.message);
+            }
+        });
+
+        document.getElementById('summary-template-file').addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file || !batchSessionId) return;
+            const inv = allInvoices[currentInvoiceIndex];
+            const sourceHeaders = inv && inv.source_headers;
+            const formData = new FormData();
+            formData.append('batch_session_id', batchSessionId);
+            formData.append('file', file);
+            try {
+                const res = await fetch('/api/upload-summary-template', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Upload failed');
+                }
+                const data = await res.json();
+                await openColumnMappingModal(data.columns, sourceHeaders, {}, inv ? inv.filename : null, data.template_filename);
+            } catch (err) {
+                showError(err.message);
+            }
+            e.target.value = '';
+        });
+
+        document.getElementById('column-mapping-save-btn').addEventListener('click', async () => {
+            const mapping = {};
+            document.querySelectorAll('.column-mapping-select').forEach(sel => {
+                const col = sel.getAttribute('data-column');
+                const val = sel.value;
+                if (val) mapping[col] = val;
+            });
+            const formData = new FormData();
+            formData.append('batch_session_id', batchSessionId);
+            formData.append('mapping', JSON.stringify(mapping));
+            try {
+                const res = await fetch('/api/set-summary-mapping', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error('Failed to save mapping');
+                document.getElementById('column-mapping-modal').classList.add('hidden');
+                refreshSummaryTemplateStatus();
+            } catch (err) {
+                showError(err.message);
+            }
+        });
+
+        document.getElementById('column-mapping-cancel-btn').addEventListener('click', () => {
+            document.getElementById('column-mapping-modal').classList.add('hidden');
+        });
+        document.getElementById('column-mapping-modal-backdrop').addEventListener('click', () => {
+            document.getElementById('column-mapping-modal').classList.add('hidden');
         });
 
         function populateInvoiceList(invoices) {
@@ -1356,11 +1552,19 @@
                 if (!response.ok) throw new Error('Generation failed');
                 
                 const blob = await response.blob();
+                const contentType = response.headers.get('content-type') || '';
+                const contentDisp = response.headers.get('content-disposition') || '';
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 const currentFilename = allInvoices[currentInvoiceIndex]?.filename || 'invoice';
-                a.download = currentFilename.replace('.csv', '.html');
+                const baseName = currentFilename.replace(/\.csv$/i, '');
+                if (contentType.indexOf('application/zip') !== -1 || blob.type === 'application/zip') {
+                    a.download = baseName + '_invoice_and_summary.zip';
+                } else {
+                    const match = contentDisp.match(/filename="?([^";\n]+)"?/);
+                    a.download = match ? match[1].trim() : (baseName + '.html');
+                }
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
@@ -1469,7 +1673,12 @@
                 },
                 paid: document.getElementById('paid-stamp-checkbox').checked,
                 style: selectedStyle,
-                item_name: document.getElementById('item-name-input').value
+                item_name: document.getElementById('item-name-input').value,
+                pricing: {
+                    job_price_flat: document.getElementById('job-price-flat').value || '',
+                    mileage_included: document.getElementById('mileage-included').value || '',
+                    mileage_charge: document.getElementById('mileage-charge').value || ''
+                }
             };
         }
 
