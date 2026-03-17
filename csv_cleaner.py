@@ -1,8 +1,12 @@
-import pandas as pd
-import sys
+import logging
 import os
 import pickle
+import sys
 from pathlib import Path
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def csv_to_dataframe(csv_file_path):
@@ -43,27 +47,22 @@ def csv_to_dataframe(csv_file_path):
     if not os.path.exists(csv_file_path):
         raise FileNotFoundError(f"File not found: {csv_file_path}")
     
-    # Read CSV file into DataFrame
     try:
         df = pd.read_csv(csv_file_path)
-        print(f"Successfully loaded CSV file: {csv_file_path}")
-        print(f"Original shape: {df.shape[0]} rows, {df.shape[1]} columns")
-        
-        # Filter to only keep specified columns that exist in the DataFrame
+        logger.info("Loaded CSV %s (%d rows, %d cols)", csv_file_path, *df.shape)
+
         existing_columns = [col for col in columns_to_keep if col in df.columns]
         missing_columns = [col for col in columns_to_keep if col not in df.columns]
-        
+
         if missing_columns:
-            print(f"Warning: The following columns were not found in the CSV: {missing_columns}")
-        
-        # Keep only the specified columns
+            logger.warning("Columns not found in CSV: %s", missing_columns)
+
         df = df[existing_columns]
-        print(f"Filtered shape: {df.shape[0]} rows, {df.shape[1]} columns")
-        print(f"Columns kept: {existing_columns}")
-        
+        logger.debug("Filtered to %d rows, %d cols: %s", *df.shape, existing_columns)
+
         return df
-    except Exception as e:
-        raise Exception(f"Error reading CSV file: {str(e)}")
+    except (FileNotFoundError, pd.errors.ParserError, pd.errors.EmptyDataError, OSError) as e:
+        raise ValueError(f"Error reading CSV file: {str(e)}") from e
 
 
 if __name__ == "__main__":

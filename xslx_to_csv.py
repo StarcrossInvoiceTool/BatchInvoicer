@@ -1,7 +1,11 @@
-import pandas as pd
-import sys
+import logging
 import os
+import sys
 from pathlib import Path
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def xlsx_to_csv(xlsx_file_path, output_dir=None):
@@ -32,31 +36,26 @@ def xlsx_to_csv(xlsx_file_path, output_dir=None):
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Read all sheets from the xlsx file
     try:
         excel_file = pd.ExcelFile(xlsx_file_path)
         sheet_names = excel_file.sheet_names
-        
-        print(f"Found {len(sheet_names)} sheet(s) in {xlsx_file_path}")
-        
-        # Convert each sheet to CSV
+
+        logger.info("Found %d sheet(s) in %s", len(sheet_names), xlsx_file_path)
+
         for sheet_name in sheet_names:
-            # Read the sheet
             df = pd.read_excel(excel_file, sheet_name=sheet_name)
-            
-            # Create CSV filename (sanitize sheet name for filename)
+
             safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).strip()
             csv_filename = f"{base_name}_{safe_sheet_name}.csv"
             csv_path = os.path.join(output_dir, csv_filename)
-            
-            # Save to CSV
+
             df.to_csv(csv_path, index=False, encoding='utf-8')
-            print(f"Created: {csv_path} ({len(df)} rows)")
-        
-        print(f"\nConversion complete! {len(sheet_names)} CSV file(s) created in {output_dir}")
-        
-    except Exception as e:
-        raise Exception(f"Error processing xlsx file: {str(e)}")
+            logger.info("Created: %s (%d rows)", csv_path, len(df))
+
+        logger.info("Conversion complete — %d CSV(s) in %s", len(sheet_names), output_dir)
+
+    except (FileNotFoundError, ValueError, OSError) as e:
+        raise ValueError(f"Error processing xlsx file: {str(e)}") from e
 
 
 if __name__ == "__main__":

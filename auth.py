@@ -6,19 +6,24 @@ All sensitive values are loaded from environment variables.
 See ENV_VARS.md for the full list of required variables.
 """
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 
-from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from passlib.context import CryptContext
 from fastapi_azure_auth import SingleTenantAzureAuthorizationCodeBearer
 
+import config
+
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
-# Shared
+# Shared (re-exported from config for backward compatibility)
 # ---------------------------------------------------------------------------
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-in-production")
-SESSION_COOKIE_NAME = "session_token"
+SECRET_KEY = config.SECRET_KEY
+SESSION_COOKIE_NAME = config.SESSION_COOKIE_NAME
 
 # ---------------------------------------------------------------------------
 # Local (whitelist) authentication
@@ -81,12 +86,16 @@ def create_session_token(username: str) -> str:
     return serializer.dumps(username)
 
 
-def verify_session_token(token: str, max_age: int = 86400) -> Optional[str]:
-    """Verify and extract username from session token (default 24 hours)"""
+def verify_session_token(token: str, max_age: int = config.SESSION_MAX_AGE) -> Optional[str]:
+    """Verify and extract username from session token."""
     try:
         username = serializer.loads(token, max_age=max_age)
         return username
-    except Exception:
+    except SignatureExpired:
+        logger.debug("Session token expired")
+        return None
+    except BadSignature:
+        logger.debug("Invalid session token signature")
         return None
 
 

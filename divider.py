@@ -1,6 +1,10 @@
-import pandas as pd
+import logging
 import os
 import re
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 def sanitize_filename(filename):
     """Remove or replace invalid filename characters"""
@@ -31,8 +35,7 @@ def split_csv_by_budget_code(input_file, output_dir='output'):
         for code in codes:
             budget_code_to_group[code] = group_name
     
-    # Read the CSV file
-    print(f"Reading CSV file: {input_file}")
+    logger.info("Reading CSV file: %s", input_file)
     df = pd.read_csv(input_file)
     
     # Check if BudgetCodeText column exists
@@ -44,7 +47,7 @@ def split_csv_by_budget_code(input_file, output_dir='output'):
     
     # Get unique BudgetCodeText values
     unique_budget_codes = df['BudgetCodeText'].unique()
-    print(f"Found {len(unique_budget_codes)} unique BudgetCodeText values")
+    logger.info("Found %d unique BudgetCodeText values", len(unique_budget_codes))
     
     # Track which groups have been processed
     processed_groups = set()
@@ -85,11 +88,10 @@ def split_csv_by_budget_code(input_file, output_dir='output'):
         
         output_path = os.path.join(output_dir, filename)
         
-        # Write to CSV
         filtered_df.to_csv(output_path, index=False)
-        print(f"Created: {output_path} ({len(filtered_df)} rows)")
-    
-    print(f"\nAll files created in '{output_dir}' directory")
+        logger.info("Created: %s (%d rows)", output_path, len(filtered_df))
+
+    logger.info("All files created in '%s' directory", output_dir)
 
 if __name__ == "__main__":
     # Default input file name

@@ -1,8 +1,14 @@
-import pandas as pd
+import logging
+import os
 import pickle
 import sys
-import os
 from pathlib import Path
+
+import pandas as pd
+
+import config
+
+logger = logging.getLogger(__name__)
 
 
 def load_cleaned_dataframe(pkl_file_path):
@@ -20,11 +26,10 @@ def load_cleaned_dataframe(pkl_file_path):
     
     try:
         df = pd.read_pickle(pkl_file_path)
-        print(f"Successfully loaded DataFrame from: {pkl_file_path}")
-        print(f"DataFrame shape: {df.shape[0]} rows, {df.shape[1]} columns")
+        logger.info("Loaded DataFrame from %s (%d rows, %d cols)", pkl_file_path, *df.shape)
         return df
-    except Exception as e:
-        raise Exception(f"Error loading pickle file: {str(e)}")
+    except (FileNotFoundError, pickle.UnpicklingError, OSError) as e:
+        raise ValueError(f"Error loading pickle file: {str(e)}") from e
 
 
 def clean_value(value):
@@ -88,8 +93,7 @@ def transform_dataframe_to_invoice_data(df):
     if df.empty:
         raise ValueError("DataFrame is empty")
     
-    # Debug: Print available columns to help troubleshoot
-    print(f"Available columns in DataFrame: {list(df.columns)}")
+    logger.debug("Available columns in DataFrame: %s", list(df.columns))
     
     # Get patient information from the first row
     # Combine Forename and Surname for patient name
@@ -166,15 +170,15 @@ def transform_dataframe_to_invoice_data(df):
             'subtotal_label': 'Invoice subtotal',  # Editable label
             'vat_amount': '',  # To be filled via UI
             'vat_label': 'VAT',  # Editable label
-            'vat_percentage': '20',  # VAT percentage for calculation
+            'vat_percentage': config.DEFAULT_VAT_PERCENTAGE,
             'total': '',  # To be filled via UI
             'total_label': 'TOTAL DUE'  # Editable label
         },
         'bank': {
-            'name': 'Lloyds Bank Plc',
-            'account_name': 'Starcross Trading Limited',
-            'account_number': '82082760',
-            'sort_code': '30-99-21'
+            'name': config.DEFAULT_BANK_NAME,
+            'account_name': config.DEFAULT_ACCOUNT_NAME,
+            'account_number': config.DEFAULT_ACCOUNT_NUMBER,
+            'sort_code': config.DEFAULT_SORT_CODE,
         },
         'paid': False,  # Flag to indicate if invoice is marked as paid
         'style': 'style1',  # Invoice style: 'style1' (detailed) or 'style2' (simplified)

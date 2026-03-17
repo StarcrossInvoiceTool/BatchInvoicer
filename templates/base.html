@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Batch Invoicer{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#edf7f2',100:'#d1eddf',200:'#a3dbbf',DEFAULT:'#00855a',dark:'#006e4a',darkest:'#013220',medium:'#388e6c' },
+            navy: { DEFAULT:'#0a2240',dark:'#061829' },
+            accent: { DEFAULT:'#4285f4',dark:'#3367c7' },
+          }
+        }
+      }
+    }
+    </script>
+    <link rel="stylesheet" href="/static/css/main.css">
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="{% block body_class %}p-4{% endblock %}">
+    {% block content %}{% endblock %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

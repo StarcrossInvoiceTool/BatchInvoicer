@@ -1,23 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login - Batch Invoicer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-    </style>
-</head>
-<body class="p-4">
+{% extends "base.html" %}
+
+{% block title %}Admin Login - Batch Invoicer{% endblock %}
+
+{% block body_class %}p-4 flex items-center justify-center min-h-screen{% endblock %}
+
+{% block content %}
     <div class="max-w-md w-full">
         <div class="bg-white rounded-lg shadow-2xl p-8">
             <!-- Back to main login -->
@@ -34,7 +21,7 @@
             </div>
 
             <div class="text-center mb-8">
-                <h1 class="text-2xl font-bold text-gray-800 mb-2">Admin Login</h1>
+                <h1 class="text-2xl font-bold text-navy mb-2">Admin Login</h1>
                 <p class="text-gray-600 text-sm">Troubleshooting access only</p>
             </div>
 
@@ -61,7 +48,7 @@
                         name="username" 
                         required
                         autofocus
-                        class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
                         placeholder="Enter your username"
                     >
                 </div>
@@ -75,14 +62,14 @@
                         id="password" 
                         name="password" 
                         required
-                        class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
                         placeholder="Enter your password"
                     >
                 </div>
 
                 <button 
                     type="submit"
-                    class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+                    class="w-full bg-accent hover:bg-accent-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
                 >
                     Sign In
                 </button>
@@ -93,6 +80,4 @@
             </div>
         </div>
     </div>
-</body>
-</html>
-
+{% endblock %}

@@ -1,0 +1,325 @@
+<!-- Invoice Editing Section (hidden initially) -->
+<div id="editing-section" class="hidden bg-white rounded-lg shadow-2xl p-8">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-navy">Edit Invoice Details</h2>
+            <p id="current-invoice-name" class="text-sm text-gray-500 mt-1"></p>
+        </div>
+        {% if show_invoice_navigation %}
+        <div class="flex gap-2" id="invoice-navigation" style="display: none;">
+            <button 
+                id="prev-invoice-btn"
+                class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+            >
+                ← Previous
+            </button>
+            <button 
+                id="next-invoice-btn"
+                class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+            >
+                Next →
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    
+    <form id="invoice-form">
+        <!-- Client Information -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Client Information</h3>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
+                    <input type="text" id="patient-name" name="patient_name" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Client Postcode</label>
+                    <input type="text" id="patient-postcode" name="patient_postcode" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Client Address</label>
+                    <textarea id="patient-address" name="patient_address" rows="3" class="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Press Enter for new lines"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoice Header Information -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Invoice Header</h3>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
+                    <input type="text" id="invoice-number" name="invoice_number" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
+                    <input type="date" id="invoice-date" name="invoice_date" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Reference</label>
+                    <input type="text" id="account-ref" name="account_ref" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+                    <input type="text" id="ref" name="ref" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
+                    <input type="text" id="po-number" name="po_number" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
+                    <input type="text" id="payment-terms" name="payment_terms" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <input type="text" id="period" name="period" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+            </div>
+        </div>
+
+        <!-- Financial Information -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Financial Information</h3>
+            <div class="space-y-4">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                        <input type="text" id="net-label" name="net_label" value="net" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                        <input type="number" step="0.01" id="net" name="net" class="w-full border border-gray-300 rounded-lg px-4 py-2" oninput="calculateSubtotalAndVAT()">
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                        <input type="text" id="discount-label" name="discount_label" value="discount" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                        <input type="number" step="0.01" id="discount" name="discount" class="w-full border border-gray-300 rounded-lg px-4 py-2" oninput="calculateSubtotalAndVAT()">
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                        <input type="text" id="subtotal-label" name="subtotal_label" value="Invoice subtotal" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                        <input type="number" step="0.01" id="subtotal" name="subtotal" class="w-full border border-gray-300 rounded-lg px-4 py-2" readonly>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                        <input type="text" id="vat-label" name="vat_label" value="VAT" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Percentage (%)</label>
+                        <input type="number" step="0.01" id="vat-percentage" name="vat_percentage" value="20" class="w-full border border-gray-300 rounded-lg px-4 py-2" oninput="calculateVAT()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                        <input type="number" step="0.01" id="vat-amount" name="vat_amount" class="w-full border border-gray-300 rounded-lg px-4 py-2" readonly>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                        <input type="text" id="total-label" name="total_label" value="TOTAL DUE" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                        <input type="number" step="0.01" id="total" name="total" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bank Details -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Bank Details (Static)</h3>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                    <input type="text" id="bank-name" name="bank_name" value="Lloyds Bank Plc" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                    <input type="text" id="bank-account-name" name="bank_account_name" value="Starcross Trading Limited" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                    <input type="text" id="bank-account-number" name="bank_account_number" value="82082760" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Sort Code</label>
+                    <input type="text" id="bank-sort-code" name="bank_sort_code" value="30-99-21" readonly class="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 cursor-not-allowed">
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoice Style Selection -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Invoice Style</h3>
+            <div class="space-y-4">
+                <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <input 
+                        type="radio" 
+                        id="style1-radio" 
+                        name="invoice-style" 
+                        value="style1"
+                        checked
+                        class="w-5 h-5 text-accent border-gray-300 focus:ring-accent"
+                        onchange="toggleStyleOptions()"
+                    >
+                    <label for="style1-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
+                        Style 1: Detailed Line Items (Show all individual items from CSV)
+                    </label>
+                </div>
+                <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <input 
+                        type="radio" 
+                        id="style2-radio" 
+                        name="invoice-style" 
+                        value="style2"
+                        class="w-5 h-5 text-accent border-gray-300 focus:ring-accent"
+                        onchange="toggleStyleOptions()"
+                    >
+                    <label for="style2-radio" class="text-sm font-medium text-gray-700 cursor-pointer">
+                        Style 2: Simplified (Single line item with total)
+                    </label>
+                </div>
+                <div id="style2-options" class="hidden ml-9 p-4 bg-white border border-blue-200 rounded-lg">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Item Name (for Style 2)</label>
+                    <textarea 
+                        id="item-name-input" 
+                        rows="3"
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2"
+                        placeholder="Leave empty to use client name. Press Enter for new lines."
+                    ></textarea>
+                    <p class="mt-2 text-xs text-gray-500">This will be displayed as the line item description. If left empty, the client name will be used.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pricing Configuration -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Pricing Configuration</h3>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Job Price (Flat) £</label>
+                        <input type="number" step="0.01" id="job-price-flat" value="" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mileage Included</label>
+                        <input type="number" step="0.01" id="mileage-included" value="" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mileage Charge £</label>
+                        <input type="number" step="0.01" id="mileage-charge" value="" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    </div>
+                </div>
+                <div class="mt-4 flex gap-4 items-center">
+                    <button 
+                        type="button"
+                        id="calculate-totals-btn"
+                        onclick="calculateSelectedTotals()"
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-6 rounded-lg transition duration-200"
+                    >
+                        Calculate Selected Totals
+                    </button>
+                    <span id="selected-count" class="text-sm text-gray-600">0 items selected</span>
+                </div>
+                <p class="mt-2 text-xs text-gray-600">
+                    Formula: Job Price + (if Actual Mileage > Mileage Included: (Actual Mileage - Mileage Included) × Mileage Charge, else: 0)
+                </p>
+            </div>
+        </div>
+
+        <!-- Invoice Line Items -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-navy mb-4">Invoice Line Items</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full border border-gray-300 rounded-lg">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">
+                                <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll()" class="cursor-pointer">
+                            </th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-100 select-none" onclick="sortTable('date')">
+                                Date <span id="sort-date-indicator" class="ml-1 text-gray-400"></span>
+                            </th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Our Ref</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Client Ref</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-100 select-none" onclick="sortTable('mob')">
+                                MOB <span id="sort-mob-indicator" class="ml-1 text-gray-400"></span>
+                            </th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-100 select-none" onclick="sortTable('miles')">
+                                Miles <span id="sort-miles-indicator" class="ml-1 text-gray-400"></span>
+                            </th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Wait £</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Miles £</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Job £</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoice-items-table">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paid Stamp Option -->
+        <div class="mb-8">
+            <div class="flex items-center gap-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <input 
+                    type="checkbox" 
+                    id="paid-stamp-checkbox" 
+                    class="w-5 h-5 text-accent border-gray-300 rounded focus:ring-accent"
+                >
+                <label for="paid-stamp-checkbox" class="text-sm font-medium text-gray-700 cursor-pointer">
+                    Mark Invoice as Paid (Add "PAID" stamp to first page)
+                </label>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4">
+            <button 
+                type="button"
+                id="preview-btn"
+                class="flex-1 bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+            >
+                Preview Invoice
+            </button>
+            {% if show_invoice_navigation %}
+            <button
+                type="button"
+                id="edit-summary-btn"
+                class="flex-1 bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+            >
+                Edit Summary Data
+            </button>
+            {% endif %}
+            <button
+                type="submit"
+                class="flex-1 bg-navy hover:bg-navy-dark text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+            >
+                Generate & Download Invoice
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Success Message -->
+<div id="success" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+    <p class="text-navy text-sm mb-2">Invoice generated successfully!</p>
+    <a id="download-link" href="#" download class="inline-block bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded transition duration-200">
+        Download HTML Invoice
+    </a>
+</div>
