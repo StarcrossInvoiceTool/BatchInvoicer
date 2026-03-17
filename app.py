@@ -158,6 +158,60 @@ def format_currency(value):
         # If conversion fails, return original value
         return str(value)
 
+def _parse_money(value) -> Optional[float]:
+    """Parse common money-ish inputs ('1,234.50', '£12.00', '') into float."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    s_lower = s.lower()
+    if s_lower in ("nan", "none", "null"):
+        return None
+    s = s.replace("£", "").replace(",", "").strip()
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
+def _coerce_money_str(value: Optional[float]) -> str:
+    if value is None:
+        return ""
+    return f"{value:.2f}"
+
+def _normalize_financial_totals(invoice_data: dict) -> None:
+    """
+    Ensure financial totals are VAT-consistent for rendering.
+    We treat subtotal + VAT as the authoritative expected total.
+    """
+    fin = invoice_data.get("financial")
+    if not isinstance(fin, dict):
+        return
+
+    subtotal = _parse_money(fin.get("subtotal"))
+    if subtotal is None:
+        return
+
+    vat_pct = _parse_money(fin.get("vat_percentage"))
+    vat_pct = vat_pct or 0.0
+
+    vat_amount = _parse_money(fin.get("vat_amount"))
+    if vat_amount is None and vat_pct:
+        vat_amount = round(subtotal * (vat_pct / 100.0), 2)
+        fin["vat_amount"] = _coerce_money_str(vat_amount)
+
+    expected_total = round(subtotal + (vat_amount or 0.0), 2)
+    current_total = _parse_money(fin.get("total"))
+
+    # Fix common mismatch: total saved as subtotal even when VAT is present.
+    if current_total is None:
+        fin["total"] = _coerce_money_str(expected_total)
+        return
+
+    if (vat_amount or 0.0) > 0.0:
+        if abs(current_total - subtotal) < 0.01 and abs(current_total - expected_total) > 0.01:
+            fin["total"] = _coerce_money_str(expected_total)
+
 def format_date_dd_mm_yyyy(date_value):
     """Format date to dd/mm/yyyy format"""
     if not date_value:
@@ -273,6 +327,9 @@ def generate_invoice_html(invoice_data_path: str, template_name: str = None, emb
     # Load invoice data
     with open(invoice_data_path, 'rb') as f:
         invoice_data = pickle.load(f)
+
+    # Make sure VAT/total values are consistent at render-time
+    _normalize_financial_totals(invoice_data)
     
     # Determine template based on style if not explicitly provided
     if template_name is None:
